@@ -1,0 +1,60 @@
+package handlers
+
+import (
+	"net/http"
+	"time"
+
+	"goals-api/models"
+
+	"github.com/labstack/echo/v4"
+	"gorm.io/gorm"
+)
+
+type WeddingHandler struct{ DB *gorm.DB }
+
+func (h *WeddingHandler) List(c echo.Context) error {
+	userID := c.Get("userId").(string)
+	var u models.User
+	h.DB.First(&u, "id = ?", userID)
+	ids := []string{userID}
+	if u.PartnerID != nil {
+		ids = append(ids, *u.PartnerID)
+	}
+	var rows []models.WeddingCategory
+	h.DB.Where("couple_id IN ?", ids).Order("created_at asc").Find(&rows)
+	return c.JSON(http.StatusOK, rows)
+}
+
+func (h *WeddingHandler) Create(c echo.Context) error {
+	userID := c.Get("userId").(string)
+	var body models.WeddingCategory
+	if err := c.Bind(&body); err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid payload"})
+	}
+	body.ID = genID("wc")
+	body.CoupleID = userID
+	body.CreatedAt = time.Now()
+	if err := h.DB.Create(&body).Error; err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to create"})
+	}
+	return c.JSON(http.StatusCreated, body)
+}
+
+func (h *WeddingHandler) Update(c echo.Context) error {
+	id := c.Param("id")
+	var patch map[string]interface{}
+	if err := c.Bind(&patch); err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid payload"})
+	}
+	delete(patch, "id")
+	delete(patch, "coupleId")
+	h.DB.Model(&models.WeddingCategory{}).Where("id = ?", id).Updates(patch)
+	var w models.WeddingCategory
+	h.DB.First(&w, "id = ?", id)
+	return c.JSON(http.StatusOK, w)
+}
+
+func (h *WeddingHandler) Delete(c echo.Context) error {
+	h.DB.Where("id = ?", c.Param("id")).Delete(&models.WeddingCategory{})
+	return c.JSON(http.StatusOK, echo.Map{"deleted": true})
+}
