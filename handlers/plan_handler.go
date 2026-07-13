@@ -44,20 +44,37 @@ func (h *PlanHandler) Create(c echo.Context) error {
 }
 
 func (h *PlanHandler) Update(c echo.Context) error {
+	userID := c.Get("userId").(string)
 	id := c.Param("id")
+	var u models.User
+	h.DB.First(&u, "id = ?", userID)
+	partnerID := ""
+	if u.PartnerID != nil {
+		partnerID = *u.PartnerID
+	}
 	var patch map[string]interface{}
 	if err := c.Bind(&patch); err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid payload"})
 	}
 	delete(patch, "id")
 	delete(patch, "userId")
-	h.DB.Model(&models.Plan{}).Where("id = ?", id).Updates(patch)
+	h.DB.Model(&models.Plan{}).Where("id = ? AND user_id IN ?", id, []string{userID, partnerID}).Updates(patch)
 	var p models.Plan
-	h.DB.First(&p, "id = ?", id)
+	if err := h.DB.First(&p, "id = ? AND user_id IN ?", id, []string{userID, partnerID}).Error; err != nil {
+		return c.JSON(http.StatusNotFound, echo.Map{"error": "not found"})
+	}
 	return c.JSON(http.StatusOK, p)
 }
 
 func (h *PlanHandler) Delete(c echo.Context) error {
-	h.DB.Where("id = ?", c.Param("id")).Delete(&models.Plan{})
+	userID := c.Get("userId").(string)
+	id := c.Param("id")
+	var u models.User
+	h.DB.First(&u, "id = ?", userID)
+	partnerID := ""
+	if u.PartnerID != nil {
+		partnerID = *u.PartnerID
+	}
+	h.DB.Where("id = ? AND user_id IN ?", id, []string{userID, partnerID}).Delete(&models.Plan{})
 	return c.JSON(http.StatusOK, echo.Map{"deleted": true})
 }

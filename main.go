@@ -82,6 +82,7 @@ func main() {
 
 	api.GET("/auth/me", authH.Me)
 	api.POST("/auth/link-partner", authH.LinkPartner)
+	api.POST("/auth/unlink-partner", authH.UnlinkPartner)
 	api.PATCH("/auth/profile", authH.UpdateProfile)
 
 	api.GET("/wallets", walletH.List)

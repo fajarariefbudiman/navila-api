@@ -35,6 +35,7 @@ func (h *GoalHandler) Create(c echo.Context) error {
 }
 
 func (h *GoalHandler) Update(c echo.Context) error {
+	userID := c.Get("userId").(string)
 	id := c.Param("id")
 	var patch map[string]interface{}
 	if err := c.Bind(&patch); err != nil {
@@ -42,13 +43,16 @@ func (h *GoalHandler) Update(c echo.Context) error {
 	}
 	delete(patch, "id")
 	delete(patch, "userId")
-	h.DB.Model(&models.Goal{}).Where("id = ?", id).Updates(patch)
+	h.DB.Model(&models.Goal{}).Where("id = ? AND user_id = ?", id, userID).Updates(patch)
 	var g models.Goal
-	h.DB.First(&g, "id = ?", id)
+	if err := h.DB.First(&g, "id = ? AND user_id = ?", id, userID).Error; err != nil {
+		return c.JSON(http.StatusNotFound, echo.Map{"error": "not found"})
+	}
 	return c.JSON(http.StatusOK, g)
 }
 
 func (h *GoalHandler) Delete(c echo.Context) error {
-	h.DB.Where("id = ?", c.Param("id")).Delete(&models.Goal{})
+	userID := c.Get("userId").(string)
+	h.DB.Where("id = ? AND user_id = ?", c.Param("id"), userID).Delete(&models.Goal{})
 	return c.JSON(http.StatusOK, echo.Map{"deleted": true})
 }

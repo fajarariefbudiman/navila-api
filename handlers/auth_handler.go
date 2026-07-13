@@ -48,6 +48,7 @@ type registerReq struct {
 	Email             string  `json:"email"`
 	Password          string  `json:"password"`
 	Gender            string  `json:"gender"`
+	Mode              string  `json:"mode"`
 	WeddingDate       string  `json:"weddingDate"`
 	TargetWeddingFund float64 `json:"targetWeddingFund"`
 }
@@ -61,12 +62,17 @@ func (h *AuthHandler) Register(c echo.Context) error {
 	if err := h.DB.Where("email = ?", strings.ToLower(req.Email)).First(&existing).Error; err == nil {
 		return c.JSON(http.StatusConflict, echo.Map{"error": "Email sudah terdaftar"})
 	}
+	mode := req.Mode
+	if mode != "myKisah" {
+		mode = "jomblo"
+	}
 	u := models.User{
 		ID:                genID("usr"),
 		Name:              req.Name,
 		Email:             strings.ToLower(req.Email),
 		Password:          hashPassword(req.Password),
 		Gender:            req.Gender,
+		Mode:              mode,
 		PartnerCode:       genPartnerCode(),
 		WeddingDate:       &req.WeddingDate,
 		TargetWeddingFund: req.TargetWeddingFund,
@@ -127,11 +133,30 @@ func (h *AuthHandler) LinkPartner(c echo.Context) error {
 	if partner.PartnerID != nil {
 		return c.JSON(http.StatusConflict, echo.Map{"error": "Pasangan sudah terhubung dengan akun lain"})
 	}
-	if err := h.DB.Model(&models.User{}).Where("id = ?", userID).Update("partner_id", partner.ID).Error; err != nil {
+	if err := h.DB.Model(&models.User{}).Where("id = ?", userID).Updates(map[string]interface{}{"partner_id": partner.ID, "mode": "myKisah"}).Error; err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to link partner"})
 	}
-	if err := h.DB.Model(&models.User{}).Where("id = ?", partner.ID).Update("partner_id", userID).Error; err != nil {
+	if err := h.DB.Model(&models.User{}).Where("id = ?", partner.ID).Updates(map[string]interface{}{"partner_id": userID, "mode": "myKisah"}).Error; err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to link partner"})
+	}
+	var updated models.User
+	h.DB.First(&updated, "id = ?", userID)
+	return c.JSON(http.StatusOK, updated)
+}
+
+func (h *AuthHandler) UnlinkPartner(c echo.Context) error {
+	userID := c.Get("userId").(string)
+	var me models.User
+	if err := h.DB.First(&me, "id = ?", userID).Error; err != nil {
+		return c.JSON(http.StatusNotFound, echo.Map{"error": "user not found"})
+	}
+	if me.PartnerID != nil {
+		h.DB.Model(&models.User{}).Where("id = ?", *me.PartnerID).
+			Updates(map[string]interface{}{"partner_id": nil, "mode": "jomblo"})
+	}
+	if err := h.DB.Model(&models.User{}).Where("id = ?", userID).
+		Updates(map[string]interface{}{"partner_id": nil, "mode": "jomblo"}).Error; err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to unlink partner"})
 	}
 	var updated models.User
 	h.DB.First(&updated, "id = ?", userID)

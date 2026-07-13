@@ -46,6 +46,7 @@ type User struct {
 	Email             string    `json:"email" gorm:"type:varchar(160);uniqueIndex"`
 	Password          string    `json:"-" gorm:"type:varchar(255)"`
 	Gender            string    `json:"gender" gorm:"type:varchar(10)"`
+	Mode              string    `json:"mode" gorm:"type:varchar(10);default:'jomblo'"` // jomblo | myKisah
 	PartnerID         *string   `json:"partnerId" gorm:"type:varchar(40)"`
 	PartnerCode       string    `json:"partnerCode" gorm:"type:varchar(20);uniqueIndex"`
 	WeddingDate       *string   `json:"weddingDate" gorm:"type:varchar(10)"`

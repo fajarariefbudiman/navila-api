@@ -47,9 +47,10 @@ func (h *TransactionHandler) Create(c echo.Context) error {
 }
 
 func (h *TransactionHandler) Delete(c echo.Context) error {
+	userID := c.Get("userId").(string)
 	id := c.Param("id")
 	var t models.Transaction
-	if err := h.DB.First(&t, "id = ?", id).Error; err != nil {
+	if err := h.DB.First(&t, "id = ? AND user_id = ?", id, userID).Error; err != nil {
 		return c.JSON(http.StatusNotFound, echo.Map{"error": "not found"})
 	}
 	err := h.DB.Transaction(func(tx *gorm.DB) error {

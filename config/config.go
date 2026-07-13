@@ -16,7 +16,7 @@ type Config struct {
 	DBPort      string
 	DBName      string
 	JWTSecret   string
-	EncKeyHex   string // 64 hex chars => 32 bytes (AES-256)
+	EncKeyHex   string 
 	AllowOrigin string
 }
 
@@ -34,12 +34,12 @@ func Load() *Config {
 	cfg := &Config{
 		AppPort:     getEnv("APP_PORT", "8080"),
 		DBUser:      getEnv("DB_USER", "root"),
-		DBPassword:  getEnv("DB_PASSWORD", ""),
-		DBHost:      getEnv("DB_HOST", "127.0.0.1"),
+		DBPassword:  getEnv("DB_PASSWORD", "OLGPJnKcdtELsHYzBVlrZSZYTpySWult"),
+		DBHost:      getEnv("DB_HOST", "mysql.railway.internal"),
 		DBPort:      getEnv("DB_PORT", "3306"),
-		DBName:      getEnv("DB_NAME", "goals_db"),
+		DBName:      getEnv("DB_NAME", "railway"),
 		JWTSecret:   getEnv("JWT_SECRET", "change-this-jwt-secret"),
-		EncKeyHex:   getEnv("APP_ENC_KEY", "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcd"),
+		EncKeyHex:   getEnv("APP_ENC_KEY", "39a33c66bece4d9450357bdba3341965b40024d9105da0ddc63b6ea0279b6827"),
 		AllowOrigin: getEnv("ALLOW_ORIGIN", "*"),
 	}
 	if cfg.JWTSecret == "change-this-in-production" {

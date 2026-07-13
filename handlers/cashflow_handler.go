@@ -35,6 +35,7 @@ func (h *CashflowHandler) Create(c echo.Context) error {
 }
 
 func (h *CashflowHandler) Delete(c echo.Context) error {
-	h.DB.Where("id = ?", c.Param("id")).Delete(&models.CashFlow{})
+	userID := c.Get("userId").(string)
+	h.DB.Where("id = ? AND user_id = ?", c.Param("id"), userID).Delete(&models.CashFlow{})
 	return c.JSON(http.StatusOK, echo.Map{"deleted": true})
 }

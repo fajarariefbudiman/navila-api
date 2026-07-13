@@ -35,6 +35,7 @@ func (h *WalletHandler) Create(c echo.Context) error {
 }
 
 func (h *WalletHandler) Update(c echo.Context) error {
+	userID := c.Get("userId").(string)
 	id := c.Param("id")
 	var patch map[string]interface{}
 	if err := c.Bind(&patch); err != nil {
@@ -42,17 +43,24 @@ func (h *WalletHandler) Update(c echo.Context) error {
 	}
 	delete(patch, "id")
 	delete(patch, "userId")
-	if err := h.DB.Model(&models.Wallet{}).Where("id = ?", id).Updates(patch).Error; err != nil {
+	if err := h.DB.Model(&models.Wallet{}).Where("id = ? AND user_id = ?", id, userID).Updates(patch).Error; err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to update wallet"})
 	}
 	var w models.Wallet
-	h.DB.First(&w, "id = ?", id)
+	if err := h.DB.First(&w, "id = ? AND user_id = ?", id, userID).Error; err != nil {
+		return c.JSON(http.StatusNotFound, echo.Map{"error": "not found"})
+	}
 	return c.JSON(http.StatusOK, w)
 }
 
 func (h *WalletHandler) Delete(c echo.Context) error {
+	userID := c.Get("userId").(string)
 	id := c.Param("id")
+	var w models.Wallet
+	if err := h.DB.First(&w, "id = ? AND user_id = ?", id, userID).Error; err != nil {
+		return c.JSON(http.StatusNotFound, echo.Map{"error": "not found"})
+	}
 	h.DB.Where("wallet_id = ?", id).Delete(&models.Transaction{})
-	h.DB.Where("id = ?", id).Delete(&models.Wallet{})
+	h.DB.Delete(&w)
 	return c.JSON(http.StatusOK, echo.Map{"deleted": true})
 }

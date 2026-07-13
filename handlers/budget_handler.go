@@ -40,6 +40,7 @@ func (h *BudgetHandler) Create(c echo.Context) error {
 }
 
 func (h *BudgetHandler) Update(c echo.Context) error {
+	userID := c.Get("userId").(string)
 	id := c.Param("id")
 	var patch map[string]interface{}
 	if err := c.Bind(&patch); err != nil {
@@ -47,13 +48,16 @@ func (h *BudgetHandler) Update(c echo.Context) error {
 	}
 	delete(patch, "id")
 	delete(patch, "userId")
-	h.DB.Model(&models.Budget{}).Where("id = ?", id).Updates(patch)
+	h.DB.Model(&models.Budget{}).Where("id = ? AND user_id = ?", id, userID).Updates(patch)
 	var b models.Budget
-	h.DB.First(&b, "id = ?", id)
+	if err := h.DB.First(&b, "id = ? AND user_id = ?", id, userID).Error; err != nil {
+		return c.JSON(http.StatusNotFound, echo.Map{"error": "not found"})
+	}
 	return c.JSON(http.StatusOK, b)
 }
 
 func (h *BudgetHandler) Delete(c echo.Context) error {
-	h.DB.Where("id = ?", c.Param("id")).Delete(&models.Budget{})
+	userID := c.Get("userId").(string)
+	h.DB.Where("id = ? AND user_id = ?", c.Param("id"), userID).Delete(&models.Budget{})
 	return c.JSON(http.StatusOK, echo.Map{"deleted": true})
 }
