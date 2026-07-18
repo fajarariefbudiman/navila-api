@@ -1,8 +1,6 @@
 package handlers
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"math/rand"
 	"net/http"
 	"strings"
@@ -12,6 +10,7 @@ import (
 	"goals-api/models"
 
 	"github.com/labstack/echo/v4"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
@@ -20,9 +19,19 @@ type AuthHandler struct {
 	JWTSecret string
 }
 
-func hashPassword(pw string) string {
-	sum := sha256.Sum256([]byte(pw))
-	return hex.EncodeToString(sum[:])
+// hashPassword hashes a raw password with bcrypt (cost 12). bcrypt salts
+// automatically and is deliberately slow, unlike a bare SHA-256 digest.
+func hashPassword(pw string) (string, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(pw), 12)
+	if err != nil {
+		return "", err
+	}
+	return string(hash), nil
+}
+
+// checkPassword compares a raw password against a bcrypt hash.
+func checkPassword(hash, pw string) bool {
+	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(pw)) == nil
 }
 
 func genID(prefix string) string {
@@ -66,11 +75,15 @@ func (h *AuthHandler) Register(c echo.Context) error {
 	if mode != "myKisah" {
 		mode = "jomblo"
 	}
+	hashed, err := hashPassword(req.Password)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to process password"})
+	}
 	u := models.User{
 		ID:                genID("usr"),
 		Name:              req.Name,
 		Email:             strings.ToLower(req.Email),
-		Password:          hashPassword(req.Password),
+		Password:          hashed,
 		Gender:            req.Gender,
 		Mode:              mode,
 		PartnerCode:       genPartnerCode(),
@@ -99,7 +112,7 @@ func (h *AuthHandler) Login(c echo.Context) error {
 	if err := h.DB.Where("email = ?", strings.ToLower(req.Email)).First(&u).Error; err != nil {
 		return c.JSON(http.StatusUnauthorized, echo.Map{"error": "Email atau password salah"})
 	}
-	if u.Password != hashPassword(req.Password) {
+	if !checkPassword(u.Password, req.Password) {
 		return c.JSON(http.StatusUnauthorized, echo.Map{"error": "Email atau password salah"})
 	}
 	token, _ := middleware.GenerateToken(u.ID, h.JWTSecret)

@@ -1,11 +1,13 @@
 package seed
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
+	"golang.org/x/crypto/bcrypt"
 )
 
-func sha256Hex(s string) string {
-	sum := sha256.Sum256([]byte(s))
-	return hex.EncodeToString(sum[:])
+func bcryptHash(s string) string {
+	hash, err := bcrypt.GenerateFromPassword([]byte(s), 12)
+	if err != nil {
+		panic("seed: failed to hash demo password: " + err.Error())
+	}
+	return string(hash)
 }

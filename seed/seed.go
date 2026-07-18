@@ -109,9 +109,6 @@ func Run(db *gorm.DB) {
 	log.Println("Seeding done.")
 }
 
-// hashDemoPassword mirrors handlers.hashPassword (sha256 hex) without an
-// import cycle; kept identical so the seeded demo accounts can log in with
-// "demo123" out of the box.
 func hashDemoPassword(pw string) string {
-	return sha256Hex(pw)
+	return bcryptHash(pw)
 }
