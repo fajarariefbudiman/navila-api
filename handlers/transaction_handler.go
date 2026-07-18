@@ -28,6 +28,7 @@ func (h *TransactionHandler) Create(c echo.Context) error {
 	body.ID = genID("t")
 	body.UserID = userID
 	body.CreatedAt = time.Now()
+	// IsWeddingContribution diambil dari body JSON (dikirim dari Flutter app)
 
 	err := h.DB.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&body).Error; err != nil {
@@ -44,6 +45,16 @@ func (h *TransactionHandler) Create(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to create transaction"})
 	}
 	return c.JSON(http.StatusCreated, body)
+}
+
+// ListWeddingContributions - GET /transactions/wedding
+// Ambil semua transaksi yang ditandai sebagai kontribusi dana nikah
+func (h *TransactionHandler) ListWeddingContributions(c echo.Context) error {
+	userID := c.Get("userId").(string)
+	var txs []models.Transaction
+	h.DB.Where("user_id = ? AND is_wedding_contribution = ?", userID, true).
+		Order("date desc").Find(&txs)
+	return c.JSON(http.StatusOK, txs)
 }
 
 func (h *TransactionHandler) Delete(c echo.Context) error {

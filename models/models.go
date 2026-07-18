@@ -86,15 +86,16 @@ type Budget struct {
 // Transaction (per wallet: deposit/withdraw)
 // ============================================================
 type Transaction struct {
-	ID        string    `json:"id" gorm:"primaryKey;type:varchar(40)"`
-	UserID    string    `json:"userId" gorm:"type:varchar(40);index"`
-	WalletID  string    `json:"walletId" gorm:"type:varchar(40);index"`
-	Type      string    `json:"type" gorm:"type:varchar(10)"` // deposit | withdraw
-	Amount    float64   `json:"amount"`
-	Category  string    `json:"category" gorm:"type:varchar(80)"`
-	Note      *string   `json:"note" gorm:"type:varchar(255)"`
-	Date      string    `json:"date" gorm:"type:varchar(10)"`
-	CreatedAt time.Time `json:"createdAt"`
+	ID                   string    `json:"id" gorm:"primaryKey;type:varchar(40)"`
+	UserID               string    `json:"userId" gorm:"type:varchar(40);index"`
+	WalletID             string    `json:"walletId" gorm:"type:varchar(40);index"`
+	Type                 string    `json:"type" gorm:"type:varchar(10)"` // deposit | withdraw
+	Amount               float64   `json:"amount"`
+	Category             string    `json:"category" gorm:"type:varchar(80)"`
+	Note                 *string   `json:"note" gorm:"type:varchar(255)"`
+	Date                 string    `json:"date" gorm:"type:varchar(10)"`
+	IsWeddingContribution bool     `json:"isWeddingContribution" gorm:"default:false"`
+	CreatedAt            time.Time `json:"createdAt"`
 }
 
 // ============================================================
