@@ -103,6 +103,16 @@ func (h *PlanHandler) Update(c echo.Context) error {
 		patch["subtasks"] = subtasks
 	}
 
+	// BUG FIX: this is the real reason updates always failed, even after
+	// the fixes above. GORM's Updates() with a raw map[string]interface{}
+	// does NOT translate camelCase map keys to the actual snake_case DB
+	// column names — it uses the key literally. The Flutter client always
+	// sends `targetDate` (camelCase), but the real column is
+	// `target_date`, so MySQL rejected every single update with
+	// "Unknown column 'targetDate' in 'SET'". Normalize every key to
+	// snake_case so it actually matches the DB column.
+	patch = camelKeysToSnake(patch)
+
 	if err := h.DB.Model(&models.Plan{}).Where("id = ? AND user_id IN ?", id, []string{userID, partnerID}).Updates(patch).Error; err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to update plan"})
 	}

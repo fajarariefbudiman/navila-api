@@ -95,6 +95,16 @@ func (h *GoalHandler) Update(c echo.Context) error {
 		patch["subtasks"] = subtasks
 	}
 
+	// BUG FIX: this is the real reason updates always failed, even after
+	// the two fixes above. GORM's Updates() with a raw map[string]interface{}
+	// does NOT translate camelCase map keys to the actual snake_case DB
+	// column names — it uses the key literally. The Flutter client always
+	// sends `targetAmount` (camelCase, matching Go's JSON tag), but the
+	// real column is `target_amount`, so MySQL rejected every single
+	// update with "Unknown column 'targetAmount' in 'SET'". Normalize
+	// every key to snake_case so it actually matches the DB column.
+	patch = camelKeysToSnake(patch)
+
 	if err := h.DB.Model(&models.Goal{}).Where("id = ? AND user_id = ?", id, userID).Updates(patch).Error; err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to update goal"})
 	}
