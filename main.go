@@ -34,6 +34,7 @@ func main() {
 		&models.Plan{},
 		&models.Goal{},
 		&models.BackupLog{},
+		&models.FundChangeRequest{},
 	); err != nil {
 		log.Fatalf("failed to migrate database: %v", err)
 	}
@@ -67,6 +68,7 @@ func main() {
 	planH := &handlers.PlanHandler{DB: db}
 	goalH := &handlers.GoalHandler{DB: db}
 	backupH := &handlers.BackupHandler{DB: db}
+	fundReqH := &handlers.FundRequestHandler{DB: db}
 
 	e.GET("/health", func(c echo.Context) error {
 		return c.JSON(200, echo.Map{"status": "ok"})
@@ -117,6 +119,12 @@ func main() {
 	api.POST("/goals", goalH.Create)
 	api.PATCH("/goals/:id", goalH.Update)
 	api.DELETE("/goals/:id", goalH.Delete)
+
+	// ---- Target dana bersama: perlu persetujuan pasangan ----
+	api.GET("/fund-requests", fundReqH.List)
+	api.POST("/fund-requests", fundReqH.Create)
+	api.POST("/fund-requests/:id/approve", fundReqH.Approve)
+	api.POST("/fund-requests/:id/reject", fundReqH.Reject)
 
 	// ---- Backup / restore (full JSON export & import + 28-day reminder) ----
 	api.GET("/backup/export", backupH.Export)

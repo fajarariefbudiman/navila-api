@@ -86,24 +86,24 @@ type Budget struct {
 // Transaction (per wallet: deposit/withdraw)
 // ============================================================
 type Transaction struct {
-	ID                   string    `json:"id" gorm:"primaryKey;type:varchar(40)"`
-	UserID               string    `json:"userId" gorm:"type:varchar(40);index"`
-	WalletID             string    `json:"walletId" gorm:"type:varchar(40);index"`
-	Type                 string    `json:"type" gorm:"type:varchar(10)"` // deposit | withdraw
-	Amount               float64   `json:"amount"`
-	Category             string    `json:"category" gorm:"type:varchar(80)"`
-	Note                 *string   `json:"note" gorm:"type:varchar(255)"`
-	Date                 string    `json:"date" gorm:"type:varchar(10)"`
-	IsWeddingContribution bool     `json:"isWeddingContribution" gorm:"default:false"`
-	CreatedAt            time.Time `json:"createdAt"`
+	ID        string    `json:"id" gorm:"primaryKey;type:varchar(40)"`
+	UserID    string    `json:"userId" gorm:"type:varchar(40);index"`
+	WalletID  string    `json:"walletId" gorm:"type:varchar(40);index"`
+	Type      string    `json:"type" gorm:"type:varchar(10)"` // deposit | withdraw
+	Amount    float64   `json:"amount"`
+	Category  string    `json:"category" gorm:"type:varchar(80)"`
+	Note      *string   `json:"note" gorm:"type:varchar(255)"`
+	Date      string    `json:"date" gorm:"type:varchar(10)"`
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 // ============================================================
-// CashFlow (income/expense not tied to a wallet)
+// CashFlow (income/expense; opsional tertaut ke sebuah Wallet)
 // ============================================================
 type CashFlow struct {
 	ID        string    `json:"id" gorm:"primaryKey;type:varchar(40)"`
 	UserID    string    `json:"userId" gorm:"type:varchar(40);index"`
+	WalletID  *string   `json:"walletId" gorm:"type:varchar(40);index"`
 	Type      string    `json:"type" gorm:"type:varchar(10)"` // income | expense
 	Category  string    `json:"category" gorm:"type:varchar(80)"`
 	Amount    float64   `json:"amount"`
@@ -173,4 +173,20 @@ type BackupLog struct {
 	UserID    string    `json:"userId" gorm:"type:varchar(40);index"`
 	Action    string    `json:"action" gorm:"type:varchar(10)"` // export | import
 	CreatedAt time.Time `json:"createdAt"`
+}
+
+// ============================================================
+// FundChangeRequest: perubahan "Target Dana Masa Depan" adalah nilai
+// bersama pasangan, jadi tidak langsung diterapkan begitu salah satu
+// pihak mengubahnya — harus disetujui pasangan dulu.
+// ============================================================
+type FundChangeRequest struct {
+	ID         string     `json:"id" gorm:"primaryKey;type:varchar(40)"`
+	FromUserID string     `json:"fromUserId" gorm:"type:varchar(40);index"`
+	ToUserID   string     `json:"toUserId" gorm:"type:varchar(40);index"`
+	OldAmount  float64    `json:"oldAmount"`
+	NewAmount  float64    `json:"newAmount"`
+	Status     string     `json:"status" gorm:"type:varchar(10)"` // pending|approved|rejected
+	CreatedAt  time.Time  `json:"createdAt"`
+	ResolvedAt *time.Time `json:"resolvedAt"`
 }
