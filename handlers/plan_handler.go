@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"net/http"
 	"time"
 
@@ -79,7 +80,27 @@ func (h *PlanHandler) Update(c echo.Context) error {
 	}
 	delete(patch, "id")
 	delete(patch, "userId")
-	h.DB.Model(&models.Plan{}).Where("id = ? AND user_id IN ?", id, []string{userID, partnerID}).Updates(patch)
+
+	// BUG FIX: same issue as goal_handler.go — a JSON array inside
+	// map[string]interface{} decodes to []interface{}, which GORM can't
+	// convert into the `subtasks` JSON column, so the whole UPDATE
+	// silently failed (error was never checked) and checklist/status
+	// changes never actually persisted.
+	if raw, ok := patch["subtasks"]; ok {
+		b, err := json.Marshal(raw)
+		if err != nil {
+			return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid subtasks payload"})
+		}
+		var subtasks models.Subtasks
+		if err := json.Unmarshal(b, &subtasks); err != nil {
+			return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid subtasks payload"})
+		}
+		patch["subtasks"] = subtasks
+	}
+
+	if err := h.DB.Model(&models.Plan{}).Where("id = ? AND user_id IN ?", id, []string{userID, partnerID}).Updates(patch).Error; err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to update plan"})
+	}
 	var p models.Plan
 	if err := h.DB.First(&p, "id = ? AND user_id IN ?", id, []string{userID, partnerID}).Error; err != nil {
 		return c.JSON(http.StatusNotFound, echo.Map{"error": "not found"})

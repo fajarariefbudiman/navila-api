@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"net/http"
 	"time"
 
@@ -68,7 +69,28 @@ func (h *GoalHandler) Update(c echo.Context) error {
 	}
 	delete(patch, "id")
 	delete(patch, "userId")
-	h.DB.Model(&models.Goal{}).Where("id = ? AND user_id = ?", id, userID).Updates(patch)
+
+	// BUG FIX: a JSON array inside map[string]interface{} decodes to
+	// []interface{}, which GORM cannot convert into the `subtasks` JSON
+	// column (that only works via models.Subtasks' driver.Valuer). Passing
+	// it as-is made the *entire* UPDATE statement fail — silently, since
+	// the error below was never checked — so status/progress/subtask
+	// changes never actually saved and the old row was returned instead.
+	if raw, ok := patch["subtasks"]; ok {
+		b, err := json.Marshal(raw)
+		if err != nil {
+			return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid subtasks payload"})
+		}
+		var subtasks models.Subtasks
+		if err := json.Unmarshal(b, &subtasks); err != nil {
+			return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid subtasks payload"})
+		}
+		patch["subtasks"] = subtasks
+	}
+
+	if err := h.DB.Model(&models.Goal{}).Where("id = ? AND user_id = ?", id, userID).Updates(patch).Error; err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to update goal"})
+	}
 	var g models.Goal
 	if err := h.DB.First(&g, "id = ? AND user_id = ?", id, userID).Error; err != nil {
 		return c.JSON(http.StatusNotFound, echo.Map{"error": "not found"})
