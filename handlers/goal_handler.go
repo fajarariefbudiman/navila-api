@@ -69,6 +69,13 @@ func (h *GoalHandler) Update(c echo.Context) error {
 	}
 	delete(patch, "id")
 	delete(patch, "userId")
+	// BUG FIX: the Flutter client always sends the full object on every
+	// update, including `createdAt` as an ISO8601 string (e.g.
+	// "2026-07-19T10:23:00.000"). MySQL's DATETIME column expects
+	// "YYYY-MM-DD HH:MM:SS" (no "T"), so leaving this in the patch made
+	// GORM's UPDATE fail on *every* request — this field should never be
+	// mutated via update anyway.
+	delete(patch, "createdAt")
 
 	// BUG FIX: a JSON array inside map[string]interface{} decodes to
 	// []interface{}, which GORM cannot convert into the `subtasks` JSON

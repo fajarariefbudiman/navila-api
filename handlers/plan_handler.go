@@ -80,6 +80,11 @@ func (h *PlanHandler) Update(c echo.Context) error {
 	}
 	delete(patch, "id")
 	delete(patch, "userId")
+	// BUG FIX: same as goal_handler.go — the Flutter client always sends
+	// `createdAt` as an ISO8601 string on every update, which MySQL's
+	// DATETIME column rejects, breaking the whole UPDATE. Strip it; it
+	// should never change after creation anyway.
+	delete(patch, "createdAt")
 
 	// BUG FIX: same issue as goal_handler.go — a JSON array inside
 	// map[string]interface{} decodes to []interface{}, which GORM can't
