@@ -25,15 +25,34 @@ func (h *WeddingHandler) List(c echo.Context) error {
 	return c.JSON(http.StatusOK, rows)
 }
 
+type weddingCreateReq struct {
+	Name   string  `json:"name"`
+	Budget float64 `json:"budget"`
+	Paid   float64 `json:"paid"`
+	Vendor *string `json:"vendor"`
+	Status string  `json:"status"`
+	Notes  *string `json:"notes"`
+	Icon   string  `json:"icon"`
+}
+
 func (h *WeddingHandler) Create(c echo.Context) error {
 	userID := c.Get("userId").(string)
-	var body models.WeddingCategory
-	if err := c.Bind(&body); err != nil {
+	var req weddingCreateReq
+	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid payload"})
 	}
-	body.ID = genID("wc")
-	body.CoupleID = userID
-	body.CreatedAt = time.Now()
+	body := models.WeddingCategory{
+		ID:        genID("wc"),
+		CoupleID:  userID,
+		Name:      req.Name,
+		Budget:    req.Budget,
+		Paid:      req.Paid,
+		Vendor:    req.Vendor,
+		Status:    req.Status,
+		Notes:     req.Notes,
+		Icon:      req.Icon,
+		CreatedAt: time.Now(),
+	}
 	if err := h.DB.Create(&body).Error; err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to create"})
 	}

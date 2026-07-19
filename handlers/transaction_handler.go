@@ -19,16 +19,34 @@ func (h *TransactionHandler) List(c echo.Context) error {
 	return c.JSON(http.StatusOK, txs)
 }
 
+type transactionCreateReq struct {
+	WalletID              string  `json:"walletId"`
+	Type                  string  `json:"type"`
+	Amount                float64 `json:"amount"`
+	Category              string  `json:"category"`
+	Note                  *string `json:"note"`
+	Date                  string  `json:"date"`
+	IsWeddingContribution bool    `json:"isWeddingContribution"`
+}
+
 func (h *TransactionHandler) Create(c echo.Context) error {
 	userID := c.Get("userId").(string)
-	var body models.Transaction
-	if err := c.Bind(&body); err != nil {
+	var req transactionCreateReq
+	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid payload"})
 	}
-	body.ID = genID("t")
-	body.UserID = userID
-	body.CreatedAt = time.Now()
-	// IsWeddingContribution diambil dari body JSON (dikirim dari Flutter app)
+	body := models.Transaction{
+		ID:                    genID("t"),
+		UserID:                userID,
+		WalletID:              req.WalletID,
+		Type:                  req.Type,
+		Amount:                req.Amount,
+		Category:              req.Category,
+		Note:                  req.Note,
+		Date:                  req.Date,
+		IsWeddingContribution: req.IsWeddingContribution,
+		CreatedAt:             time.Now(),
+	}
 
 	err := h.DB.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&body).Error; err != nil {

@@ -28,15 +28,36 @@ func (h *PlanHandler) List(c echo.Context) error {
 	return c.JSON(http.StatusOK, rows)
 }
 
+type planCreateReq struct {
+	Type        string          `json:"type"`
+	Title       string          `json:"title"`
+	Description *string         `json:"description"`
+	Category    string          `json:"category"`
+	TargetDate  *string         `json:"targetDate"`
+	Budget      *float64        `json:"budget"`
+	Status      string          `json:"status"`
+	Subtasks    models.Subtasks `json:"subtasks"`
+}
+
 func (h *PlanHandler) Create(c echo.Context) error {
 	userID := c.Get("userId").(string)
-	var body models.Plan
-	if err := c.Bind(&body); err != nil {
+	var req planCreateReq
+	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid payload"})
 	}
-	body.ID = genID("p")
-	body.UserID = userID
-	body.CreatedAt = time.Now()
+	body := models.Plan{
+		ID:          genID("p"),
+		UserID:      userID,
+		Type:        req.Type,
+		Title:       req.Title,
+		Description: req.Description,
+		Category:    req.Category,
+		TargetDate:  req.TargetDate,
+		Budget:      req.Budget,
+		Status:      req.Status,
+		Subtasks:    req.Subtasks,
+		CreatedAt:   time.Now(),
+	}
 	if err := h.DB.Create(&body).Error; err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to create plan"})
 	}

@@ -19,15 +19,40 @@ func (h *GoalHandler) List(c echo.Context) error {
 	return c.JSON(http.StatusOK, rows)
 }
 
+type goalCreateReq struct {
+	Title        string          `json:"title"`
+	Description  *string         `json:"description"`
+	Category     string          `json:"category"`
+	Priority     string          `json:"priority"`
+	Status       string          `json:"status"`
+	Progress     int             `json:"progress"`
+	Deadline     *string         `json:"deadline"`
+	TargetAmount *float64        `json:"targetAmount"`
+	Notes        *string         `json:"notes"`
+	Subtasks     models.Subtasks `json:"subtasks"`
+}
+
 func (h *GoalHandler) Create(c echo.Context) error {
 	userID := c.Get("userId").(string)
-	var body models.Goal
-	if err := c.Bind(&body); err != nil {
+	var req goalCreateReq
+	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid payload"})
 	}
-	body.ID = genID("g")
-	body.UserID = userID
-	body.CreatedAt = time.Now()
+	body := models.Goal{
+		ID:           genID("g"),
+		UserID:       userID,
+		Title:        req.Title,
+		Description:  req.Description,
+		Category:     req.Category,
+		Priority:     req.Priority,
+		Status:       req.Status,
+		Progress:     req.Progress,
+		Deadline:     req.Deadline,
+		TargetAmount: req.TargetAmount,
+		Notes:        req.Notes,
+		Subtasks:     req.Subtasks,
+		CreatedAt:    time.Now(),
+	}
 	if err := h.DB.Create(&body).Error; err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to create goal"})
 	}

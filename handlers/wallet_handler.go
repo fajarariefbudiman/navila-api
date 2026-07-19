@@ -19,15 +19,30 @@ func (h *WalletHandler) List(c echo.Context) error {
 	return c.JSON(http.StatusOK, wallets)
 }
 
+type walletCreateReq struct {
+	Name         string   `json:"name"`
+	Type         string   `json:"type"`
+	Balance      float64  `json:"balance"`
+	TargetAmount *float64 `json:"targetAmount"`
+	Color        string   `json:"color"`
+}
+
 func (h *WalletHandler) Create(c echo.Context) error {
 	userID := c.Get("userId").(string)
-	var body models.Wallet
-	if err := c.Bind(&body); err != nil {
+	var req walletCreateReq
+	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid payload"})
 	}
-	body.ID = genID("w")
-	body.UserID = userID
-	body.CreatedAt = time.Now()
+	body := models.Wallet{
+		ID:           genID("w"),
+		UserID:       userID,
+		Name:         req.Name,
+		Type:         req.Type,
+		Balance:      req.Balance,
+		TargetAmount: req.TargetAmount,
+		Color:        req.Color,
+		CreatedAt:    time.Now(),
+	}
 	if err := h.DB.Create(&body).Error; err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to create wallet"})
 	}

@@ -24,15 +24,26 @@ func (h *BudgetHandler) List(c echo.Context) error {
 	return c.JSON(http.StatusOK, budgets)
 }
 
+type budgetCreateReq struct {
+	Category        string  `json:"category"`
+	AllocatedAmount float64 `json:"allocatedAmount"`
+	Period          string  `json:"period"`
+}
+
 func (h *BudgetHandler) Create(c echo.Context) error {
 	userID := c.Get("userId").(string)
-	var body models.Budget
-	if err := c.Bind(&body); err != nil {
+	var req budgetCreateReq
+	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid payload"})
 	}
-	body.ID = genID("b")
-	body.UserID = userID
-	body.CreatedAt = time.Now()
+	body := models.Budget{
+		ID:              genID("b"),
+		UserID:          userID,
+		Category:        req.Category,
+		AllocatedAmount: req.AllocatedAmount,
+		Period:          req.Period,
+		CreatedAt:       time.Now(),
+	}
 	if err := h.DB.Create(&body).Error; err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to create budget"})
 	}

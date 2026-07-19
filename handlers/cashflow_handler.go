@@ -19,15 +19,32 @@ func (h *CashflowHandler) List(c echo.Context) error {
 	return c.JSON(http.StatusOK, rows)
 }
 
+type cashflowCreateReq struct {
+	WalletID *string `json:"walletId"`
+	Type     string  `json:"type"`
+	Category string  `json:"category"`
+	Amount   float64 `json:"amount"`
+	Note     *string `json:"note"`
+	Date     string  `json:"date"`
+}
+
 func (h *CashflowHandler) Create(c echo.Context) error {
 	userID := c.Get("userId").(string)
-	var body models.CashFlow
-	if err := c.Bind(&body); err != nil {
+	var req cashflowCreateReq
+	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid payload"})
 	}
-	body.ID = genID("cf")
-	body.UserID = userID
-	body.CreatedAt = time.Now()
+	body := models.CashFlow{
+		ID:        genID("cf"),
+		UserID:    userID,
+		WalletID:  req.WalletID,
+		Type:      req.Type,
+		Category:  req.Category,
+		Amount:    req.Amount,
+		Note:      req.Note,
+		Date:      req.Date,
+		CreatedAt: time.Now(),
+	}
 	if err := h.DB.Create(&body).Error; err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to create cashflow"})
 	}
