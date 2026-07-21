@@ -59,6 +59,7 @@ func (h *BudgetHandler) Update(c echo.Context) error {
 	}
 	delete(patch, "id")
 	delete(patch, "userId")
+	patch = camelKeysToSnake(patch)
 	h.DB.Model(&models.Budget{}).Where("id = ? AND user_id = ?", id, userID).Updates(patch)
 	var b models.Budget
 	if err := h.DB.First(&b, "id = ? AND user_id = ?", id, userID).Error; err != nil {

@@ -186,6 +186,7 @@ func (h *AuthHandler) UpdateProfile(c echo.Context) error {
 	delete(patch, "email")
 	delete(patch, "password")
 	delete(patch, "partnerCode")
+	patch = camelKeysToSnake(patch)
 	if err := h.DB.Model(&models.User{}).Where("id = ?", userID).Updates(patch).Error; err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to update"})
 	}

@@ -8,7 +8,6 @@ import (
 	appmw "goals-api/middleware"
 	"goals-api/models"
 	"goals-api/pkg/crypto"
-	"goals-api/seed"
 
 	"github.com/labstack/echo/v4"
 	echomw "github.com/labstack/echo/v4/middleware"
@@ -39,7 +38,7 @@ func main() {
 		log.Fatalf("failed to migrate database: %v", err)
 	}
 
-	seed.Run(db)
+	// seed.Run(db)
 
 	box, err := crypto.NewBox(cfg.EncKeyHex)
 	if err != nil {

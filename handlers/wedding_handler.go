@@ -69,6 +69,7 @@ func (h *WeddingHandler) Update(c echo.Context) error {
 	}
 	delete(patch, "id")
 	delete(patch, "coupleId")
+	patch = camelKeysToSnake(patch)
 	h.DB.Model(&models.WeddingCategory{}).Where("id = ? AND couple_id IN ?", id, ids).Updates(patch)
 	var w models.WeddingCategory
 	if err := h.DB.First(&w, "id = ? AND couple_id IN ?", id, ids).Error; err != nil {

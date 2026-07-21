@@ -58,6 +58,7 @@ func (h *WalletHandler) Update(c echo.Context) error {
 	}
 	delete(patch, "id")
 	delete(patch, "userId")
+	patch = camelKeysToSnake(patch)
 	if err := h.DB.Model(&models.Wallet{}).Where("id = ? AND user_id = ?", id, userID).Updates(patch).Error; err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to update wallet"})
 	}
