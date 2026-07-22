@@ -45,7 +45,27 @@ func (h *CashflowHandler) Create(c echo.Context) error {
 		Date:      req.Date,
 		CreatedAt: time.Now(),
 	}
-	if err := h.DB.Create(&body).Error; err != nil {
+	err := h.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&body).Error; err != nil {
+			return err
+		}
+		// BUG FIX: kalau cashflow ditautkan ke sebuah wallet, saldo wallet
+		// di DATABASE juga harus disesuaikan di sini — sebelumnya endpoint
+		// ini cuma insert baris cashflow, sehingga saldo yang "berubah" di
+		// app cuma state lokal (SharedPreferences). Begitu app fetch ulang
+		// wallet dari server, saldo balik seperti semula karena DB tidak
+		// pernah diupdate. Pola ini menyamakan dengan transaction_handler.go.
+		if body.WalletID != nil && *body.WalletID != "" {
+			delta := body.Amount
+			if body.Type == "expense" {
+				delta = -body.Amount
+			}
+			return tx.Model(&models.Wallet{}).Where("id = ?", *body.WalletID).
+				Update("balance", gorm.Expr("balance + ?", delta)).Error
+		}
+		return nil
+	})
+	if err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to create cashflow"})
 	}
 	return c.JSON(http.StatusCreated, body)
@@ -53,6 +73,35 @@ func (h *CashflowHandler) Create(c echo.Context) error {
 
 func (h *CashflowHandler) Delete(c echo.Context) error {
 	userID := c.Get("userId").(string)
-	h.DB.Where("id = ? AND user_id = ?", c.Param("id"), userID).Delete(&models.CashFlow{})
+	id := c.Param("id")
+	// BUG FIX: parameter `rollback` yang dikirim app (lihat api_service.dart
+	// `deleteCashFlow`) sebelumnya diabaikan total. Default true supaya
+	// perilaku sama seperti sebelumnya kalau param tidak dikirim.
+	rollback := c.QueryParam("rollback") != "false"
+
+	var cf models.CashFlow
+	if err := h.DB.First(&cf, "id = ? AND user_id = ?", id, userID).Error; err != nil {
+		return c.JSON(http.StatusNotFound, echo.Map{"error": "not found"})
+	}
+
+	err := h.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Delete(&cf).Error; err != nil {
+			return err
+		}
+		// BUG FIX: sebelumnya saldo wallet di DB tidak pernah dikembalikan
+		// saat entri arus kas dihapus, sama seperti bug di Create.
+		if rollback && cf.WalletID != nil && *cf.WalletID != "" {
+			delta := -cf.Amount
+			if cf.Type == "expense" {
+				delta = cf.Amount
+			}
+			return tx.Model(&models.Wallet{}).Where("id = ?", *cf.WalletID).
+				Update("balance", gorm.Expr("balance + ?", delta)).Error
+		}
+		return nil
+	})
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to delete cashflow"})
+	}
 	return c.JSON(http.StatusOK, echo.Map{"deleted": true})
 }
