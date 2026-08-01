@@ -34,7 +34,7 @@ func Load() *Config {
 	cfg := &Config{
 		AppPort:     getEnv("APP_PORT", "8080"),
 		DBUser:      getEnv("DB_USER", "root"),
-		DBPassword:  getEnv("DB_PASSWORD", "OLGPJnKcdtELsHYzBVlrZSZYTpySWult"),
+		DBPassword:  getEnv("DB_PASSWORD", "bBopnMbtAKwIRakAKwBSxnAcUHmaWoTY"),
 		DBHost:      getEnv("DB_HOST", "mysql.railway.internal"),
 		DBPort:      getEnv("DB_PORT", "3306"),
 		DBName:      getEnv("DB_NAME", "railway"),
