@@ -39,6 +39,13 @@ func (h *GoalHandler) Create(c echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid payload"})
 	}
+	// ✅ Kalau goal langsung dibuat dengan subtasks (jarang, tapi bisa
+	// terjadi lewat duplicate/template), progress-nya ikut dihitung dari
+	// situ -- bukan dari nilai `progress` yang dikirim manual.
+	progress := req.Progress
+	if p := computeProgressFromSubtasks(req.Subtasks); p >= 0 {
+		progress = p
+	}
 	body := models.Goal{
 		ID:           genID("g"),
 		UserID:       userID,
@@ -47,7 +54,7 @@ func (h *GoalHandler) Create(c echo.Context) error {
 		Category:     req.Category,
 		Priority:     req.Priority,
 		Status:       req.Status,
-		Progress:     req.Progress,
+		Progress:     progress,
 		Deadline:     req.Deadline,
 		TargetAmount: req.TargetAmount,
 		Notes:        req.Notes,
@@ -93,16 +100,17 @@ func (h *GoalHandler) Update(c echo.Context) error {
 			return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid subtasks payload"})
 		}
 		patch["subtasks"] = subtasks
+
+		// ✅ FITUR: progress otomatis nambah/berkurang sesuai subtask yang
+		// dicentang -- user gak perlu geser progress manual lagi begitu ada
+		// checklist. Kalau ada subtask yang belum dicentang, progress
+		// TIDAK BISA 100% (dihitung persis proporsional), jadi selalu
+		// akurat merepresentasikan "sudah sampai mana".
+		if p := computeProgressFromSubtasks(subtasks); p >= 0 {
+			patch["progress"] = p
+		}
 	}
 
-	// BUG FIX: this is the real reason updates always failed, even after
-	// the two fixes above. GORM's Updates() with a raw map[string]interface{}
-	// does NOT translate camelCase map keys to the actual snake_case DB
-	// column names — it uses the key literally. The Flutter client always
-	// sends `targetAmount` (camelCase, matching Go's JSON tag), but the
-	// real column is `target_amount`, so MySQL rejected every single
-	// update with "Unknown column 'targetAmount' in 'SET'". Normalize
-	// every key to snake_case so it actually matches the DB column.
 	patch = camelKeysToSnake(patch)
 
 	if err := h.DB.Model(&models.Goal{}).Where("id = ? AND user_id = ?", id, userID).Updates(patch).Error; err != nil {

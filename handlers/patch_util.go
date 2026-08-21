@@ -1,6 +1,32 @@
 package handlers
 
-import "strings"
+import (
+	"strings"
+
+	"goals-api/models"
+)
+
+// computeProgressFromSubtasks menghitung persentase progress (0-100)
+// berdasarkan berapa subtask yang sudah dicentang. Dipakai bareng oleh
+// goal_handler.go & plan_handler.go supaya progress SELALU sinkron
+// dengan checklist -- user gak perlu nebak-nebak sendiri sudah di titik
+// mana, karena progress otomatis nambah begitu subtask dicentang.
+//
+// Kalau subtasks kosong (goal/plan tanpa checklist), return -1 sebagai
+// penanda "jangan diubah" -- progress-nya tetap dikontrol manual oleh
+// user (mis. lewat perubahan status).
+func computeProgressFromSubtasks(subtasks models.Subtasks) int {
+	if len(subtasks) == 0 {
+		return -1
+	}
+	done := 0
+	for _, s := range subtasks {
+		if s.Done {
+			done++
+		}
+	}
+	return (done * 100) / len(subtasks)
+}
 
 // camelToSnake converts a camelCase string (as produced by Dart's
 // `toJson()`, e.g. "targetAmount") into the snake_case form GORM uses by

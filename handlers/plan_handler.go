@@ -37,6 +37,7 @@ type planCreateReq struct {
 	TargetDate  *string         `json:"targetDate"`
 	Budget      *float64        `json:"budget"`
 	Status      string          `json:"status"`
+	Progress    int             `json:"progress"`
 	Subtasks    models.Subtasks `json:"subtasks"`
 }
 
@@ -45,6 +46,12 @@ func (h *PlanHandler) Create(c echo.Context) error {
 	var req planCreateReq
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid payload"})
+	}
+	// ✅ Sama seperti Goal -- kalau ada subtasks, progress dihitung dari
+	// situ, bukan dari nilai manual.
+	progress := req.Progress
+	if p := computeProgressFromSubtasks(req.Subtasks); p >= 0 {
+		progress = p
 	}
 	body := models.Plan{
 		ID:          genID("p"),
@@ -56,6 +63,7 @@ func (h *PlanHandler) Create(c echo.Context) error {
 		TargetDate:  req.TargetDate,
 		Budget:      req.Budget,
 		Status:      req.Status,
+		Progress:    progress,
 		Subtasks:    req.Subtasks,
 		CreatedAt:   time.Now(),
 	}
@@ -101,6 +109,12 @@ func (h *PlanHandler) Update(c echo.Context) error {
 			return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid subtasks payload"})
 		}
 		patch["subtasks"] = subtasks
+
+		// ✅ FITUR: progress otomatis sinkron dengan checklist, sama
+		// persis seperti Goal.
+		if p := computeProgressFromSubtasks(subtasks); p >= 0 {
+			patch["progress"] = p
+		}
 	}
 
 	// BUG FIX: this is the real reason updates always failed, even after

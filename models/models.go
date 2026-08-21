@@ -142,6 +142,9 @@ type Plan struct {
 	TargetDate  *string   `json:"targetDate" gorm:"type:varchar(10)"`
 	Budget      *float64  `json:"budget"`
 	Status      string    `json:"status" gorm:"type:varchar(20)"`
+	// ✅ Progress (0-100) -- dihitung otomatis dari Subtasks (persis
+	// seperti Goal), supaya konsisten: cek subtask, persen ikut naik.
+	Progress    int       `json:"progress"`
 	Subtasks    Subtasks  `json:"subtasks" gorm:"type:json"`
 	CreatedAt   time.Time `json:"createdAt"`
 }
