@@ -13,19 +13,27 @@ import (
 
 type PlanHandler struct{ DB *gorm.DB }
 
+// List - GET /plans
+// ✅ FIX: sebelumnya visibilitas rencana pasangan digembok oleh field
+// `type` (kalau dibuat sebagai "Milikku"/mine, PERMANEN tidak pernah
+// kelihatan ke pasangan sama sekali, walau mereka sudah terhubung
+// resmi). Ini salah desain -- fitur "We Plan" dari awal memang untuk
+// SALING LIHAT rencana pasangan, sama seperti Goals ("Goals Saya" /
+// "Goals <Nama Pasangan>" yang keduanya full terlihat). Sekarang
+// query-nya disamakan dengan pola itu: siapa pun yang terhubung sebagai
+// pasangan, SEMUA rencananya (apapun `type`-nya) ikut kelihatan.
+// `type` sekarang murni label kategori (Milikku/Pasangan/Bersama),
+// bukan lagi kontrol akses.
 func (h *PlanHandler) List(c echo.Context) error {
 	userID := c.Get("userId").(string)
 	var u models.User
 	h.DB.First(&u, "id = ?", userID)
-	partnerID := ""
-	if u.PartnerID != nil {
-		partnerID = *u.PartnerID
+	ids := []string{userID}
+	if u.PartnerID != nil && *u.PartnerID != "" {
+		ids = append(ids, *u.PartnerID)
 	}
 	var rows []models.Plan
-	h.DB.Where(
-		"(type = 'together' AND user_id IN ?) OR (type = 'mine' AND user_id = ?) OR (type = 'partner' AND user_id IN ?)",
-		[]string{userID, partnerID}, userID, []string{userID, partnerID},
-	).Order("created_at desc").Find(&rows)
+	h.DB.Where("user_id IN ?", ids).Order("created_at desc").Find(&rows)
 	return c.JSON(http.StatusOK, rows)
 }
 
