@@ -238,7 +238,11 @@ func (h *WeddingTemplateHandler) ApplyTemplate(c echo.Context) error {
 			cat := models.WeddingCategory{
 				ID: genID("wc"), CoupleID: me.ID, Name: item.Name,
 				Budget: req.TotalBudget * item.Percent / 100, Paid: 0,
-				Status: "belum", Icon: item.Icon, CreatedAt: time.Now(),
+				// BUG FIX: status harus salah satu dari 4 nilai yang dikenal
+				// Flutter ('planning'|'booked'|'paid'|'done') -- sebelumnya
+				// dipakai "belum" yang tidak ada di dropdown, jadi
+				// DropdownButton di detail item error begitu dibuka.
+				Status: "planning", Icon: item.Icon, CreatedAt: time.Now(),
 				WalletID: req.WalletID,
 			}
 			if err := tx.Create(&cat).Error; err != nil {
