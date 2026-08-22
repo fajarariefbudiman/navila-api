@@ -26,6 +26,9 @@ type cashflowCreateReq struct {
 	Amount   float64 `json:"amount"`
 	Note     *string `json:"note"`
 	Date     string  `json:"date"`
+	// ContributeToMainGoal: sama seperti di transaction_handler.go -- opsi
+	// "Masukkan ke goals anda?" untuk kas/pemasukan.
+	ContributeToMainGoal bool `json:"contributeToMainGoal"`
 }
 
 func (h *CashflowHandler) Create(c echo.Context) error {
@@ -45,6 +48,7 @@ func (h *CashflowHandler) Create(c echo.Context) error {
 		Date:      req.Date,
 		CreatedAt: time.Now(),
 	}
+	var updatedGoal *models.MainGoal
 	err := h.DB.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&body).Error; err != nil {
 			return err
@@ -60,15 +64,28 @@ func (h *CashflowHandler) Create(c echo.Context) error {
 			if body.Type == "expense" {
 				delta = -body.Amount
 			}
-			return tx.Model(&models.Wallet{}).Where("id = ?", *body.WalletID).
-				Update("balance", gorm.Expr("balance + ?", delta)).Error
+			if err := tx.Model(&models.Wallet{}).Where("id = ?", *body.WalletID).
+				Update("balance", gorm.Expr("balance + ?", delta)).Error; err != nil {
+				return err
+			}
+		}
+		// ✅ FITUR: opsi "Masukkan ke goals anda?" untuk pemasukan (income).
+		if req.ContributeToMainGoal && body.Type == "income" {
+			g, err := contributeToMainGoal(tx, userID, body.Amount, "cashflow_income", body.ID)
+			if err != nil {
+				return err
+			}
+			updatedGoal = g
 		}
 		return nil
 	})
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to create cashflow"})
 	}
-	return c.JSON(http.StatusCreated, body)
+	return c.JSON(http.StatusCreated, echo.Map{
+		"cashflow": body,
+		"mainGoal": updatedGoal,
+	})
 }
 
 func (h *CashflowHandler) Delete(c echo.Context) error {

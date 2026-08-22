@@ -34,6 +34,13 @@ func main() {
 		&models.Goal{},
 		&models.BackupLog{},
 		&models.FundChangeRequest{},
+		&models.MainGoal{},
+		&models.MainGoalContribution{},
+		&models.MainGoalChangeRequest{},
+		&models.WeddingTemplateSelection{},
+		&models.WeddingTemplateChangeRequest{},
+		&models.HabitProfile{},
+		&models.HabitScheduleEntry{},
 	); err != nil {
 		log.Fatalf("failed to migrate database: %v", err)
 	}
@@ -68,6 +75,9 @@ func main() {
 	goalH := &handlers.GoalHandler{DB: db}
 	backupH := &handlers.BackupHandler{DB: db}
 	fundReqH := &handlers.FundRequestHandler{DB: db}
+	mainGoalH := &handlers.MainGoalHandler{DB: db}
+	weddingTmplH := &handlers.WeddingTemplateHandler{DB: db}
+	habitH := &handlers.HabitHandler{DB: db, AnthropicAPIKey: cfg.AnthropicAPIKey}
 
 	e.GET("/health", func(c echo.Context) error {
 		return c.JSON(200, echo.Map{"status": "ok"})
@@ -124,6 +134,32 @@ func main() {
 	api.POST("/fund-requests", fundReqH.Create)
 	api.POST("/fund-requests/:id/approve", fundReqH.Approve)
 	api.POST("/fund-requests/:id/reject", fundReqH.Reject)
+
+	// ---- FITUR 1: Goals Utama Pasangan ----
+	api.GET("/main-goal", mainGoalH.Get)
+	api.GET("/main-goal/history", mainGoalH.History)
+	api.POST("/main-goal", mainGoalH.Create)
+	api.PATCH("/main-goal/:id", mainGoalH.Edit)
+	api.GET("/main-goal-requests", mainGoalH.ListRequests)
+	api.POST("/main-goal-requests/:id/approve", mainGoalH.Approve)
+	api.POST("/main-goal-requests/:id/reject", mainGoalH.Reject)
+
+	// ---- FITUR 2: Template Wedding Planning ----
+	api.GET("/wedding/templates", weddingTmplH.ListTemplates)
+	api.GET("/wedding/template-selection", weddingTmplH.GetSelection)
+	api.POST("/wedding/apply-template", weddingTmplH.ApplyTemplate)
+	api.GET("/wedding-template-requests", weddingTmplH.ListRequests)
+	api.POST("/wedding-template-requests/:id/approve", weddingTmplH.Approve)
+	api.POST("/wedding-template-requests/:id/reject", weddingTmplH.Reject)
+
+	// ---- FITUR 3: Notif Habit (jadwal otomatis) ----
+	api.GET("/habit/profile", habitH.GetProfile)
+	api.POST("/habit/profile", habitH.SaveProfile)
+	api.GET("/habit/schedule", habitH.GetSchedule)
+	api.GET("/habit/schedule/partner", habitH.GetPartnerSchedule)
+	api.POST("/habit/schedule", habitH.CreateEntry)
+	api.PATCH("/habit/schedule/:id", habitH.UpdateEntry)
+	api.DELETE("/habit/schedule/:id", habitH.DeleteEntry)
 
 	// ---- Backup / restore (full JSON export & import + 28-day reminder) ----
 	api.GET("/backup/export", backupH.Export)

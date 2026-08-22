@@ -27,6 +27,9 @@ type transactionCreateReq struct {
 	Note                  *string `json:"note"`
 	Date                  string  `json:"date"`
 	IsWeddingContribution bool    `json:"isWeddingContribution"`
+	// ContributeToMainGoal: dijawab "ya" saat prompt "Masukkan ke goals
+	// anda?" muncul ketika user menambah saldo (deposit) di wallet ini.
+	ContributeToMainGoal bool `json:"contributeToMainGoal"`
 }
 
 func (h *TransactionHandler) Create(c echo.Context) error {
@@ -48,6 +51,7 @@ func (h *TransactionHandler) Create(c echo.Context) error {
 		CreatedAt:             time.Now(),
 	}
 
+	var updatedGoal *models.MainGoal
 	err := h.DB.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&body).Error; err != nil {
 			return err
@@ -56,13 +60,29 @@ func (h *TransactionHandler) Create(c echo.Context) error {
 		if body.Type == "withdraw" {
 			delta = -body.Amount
 		}
-		return tx.Model(&models.Wallet{}).Where("id = ?", body.WalletID).
-			Update("balance", gorm.Expr("balance + ?", delta)).Error
+		if err := tx.Model(&models.Wallet{}).Where("id = ?", body.WalletID).
+			Update("balance", gorm.Expr("balance + ?", delta)).Error; err != nil {
+			return err
+		}
+		// ✅ FITUR: kalau user pilih "Masukkan ke goals anda?" saat nambah
+		// saldo, dana ini juga ikut nambah ke Goal Utama Pasangan yang
+		// sedang aktif (kalau ada).
+		if req.ContributeToMainGoal && body.Type == "deposit" {
+			g, err := contributeToMainGoal(tx, userID, body.Amount, "wallet_deposit", body.ID)
+			if err != nil {
+				return err
+			}
+			updatedGoal = g
+		}
+		return nil
 	})
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to create transaction"})
 	}
-	return c.JSON(http.StatusCreated, body)
+	return c.JSON(http.StatusCreated, echo.Map{
+		"transaction": body,
+		"mainGoal":    updatedGoal,
+	})
 }
 
 // ListWeddingContributions - GET /transactions/wedding
