@@ -14,6 +14,7 @@ import (
 )
 
 var errNoActiveGoal = errors.New("no active main goal")
+var errWithdrawTooMuch = errors.New("withdraw amount exceeds current goal amount")
 
 type MainGoalHandler struct{ DB *gorm.DB }
 
@@ -411,4 +412,134 @@ func (h *MainGoalHandler) ContributeFromWallet(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to contribute"})
 	}
 	return c.JSON(http.StatusOK, updatedGoal)
+}
+
+// Withdraw - POST /main-goal/withdraw
+// ✅ FITUR: kurangi dana Goal Utama -- misal goal "Umrah" ternyata mau
+// dialihkan prioritasnya ke "Mahar" dulu. Karena kontribusi tidak
+// pernah benar-benar memotong saldo wallet sampai goal 100% (lihat
+// contributeToMainGoal), mengurangi dana di sini juga TIDAK
+// mengembalikan apa pun ke wallet -- uangnya memang tidak pernah
+// kemana-mana, cuma dilepas statusnya dari "sudah dikomit ke goal ini"
+// jadi bebas lagi (bisa dikomit ulang ke goal lain, atau dibiarkan).
+//
+// Kalau `walletId` diisi: pengurangan diambil murni dari kontribusi
+// yang berasal dari dompet itu saja. Kalau tidak diisi: pengurangan
+// dibagi proporsional ke semua dompet yang pernah berkontribusi, supaya
+// jejak per-dompetnya tetap akurat kalau nanti goal ini toh mencapai
+// 100% (settleMainGoalWallets butuh angka per-dompet yang benar).
+type withdrawMainGoalReq struct {
+	Amount   float64 `json:"amount"`
+	WalletID *string `json:"walletId"`
+}
+
+func (h *MainGoalHandler) Withdraw(c echo.Context) error {
+	userID := c.Get("userId").(string)
+	var req withdrawMainGoalReq
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid payload"})
+	}
+	if req.Amount <= 0 {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "jumlah wajib lebih dari 0"})
+	}
+
+	var me models.User
+	if err := h.DB.First(&me, "id = ?", userID).Error; err != nil {
+		return c.JSON(http.StatusNotFound, echo.Map{"error": "user not found"})
+	}
+	key := coupleKey(me.ID, me.PartnerID)
+
+	var updatedGoal models.MainGoal
+	err := h.DB.Transaction(func(tx *gorm.DB) error {
+		var goal models.MainGoal
+		if err := tx.Where("couple_key = ? AND status = 'active'", key).
+			Order("created_at desc").First(&goal).Error; err != nil {
+			return errNoActiveGoal
+		}
+		if req.Amount > goal.CurrentAmount {
+			return errWithdrawTooMuch
+		}
+
+		now := time.Now()
+		if err := tx.Model(&goal).Updates(map[string]interface{}{
+			"current_amount": goal.CurrentAmount - req.Amount,
+			"updated_at":      now,
+		}).Error; err != nil {
+			return err
+		}
+
+		if req.WalletID != nil && *req.WalletID != "" {
+			// Kurangi murni dari kontribusi dompet yang diminta.
+			contrib := models.MainGoalContribution{
+				ID: genID("mgc"), MainGoalID: goal.ID, UserID: userID,
+				SourceType: "withdrawal", SourceID: "", WalletID: req.WalletID,
+				Amount: -req.Amount, CreatedAt: now,
+			}
+			if err := tx.Create(&contrib).Error; err != nil {
+				return err
+			}
+		} else {
+			// Bagi proporsional ke semua dompet yang pernah berkontribusi.
+			var contribs []models.MainGoalContribution
+			if err := tx.Where("main_goal_id = ? AND wallet_id IS NOT NULL", goal.ID).Find(&contribs).Error; err != nil {
+				return err
+			}
+			perWallet := map[string]float64{}
+			for _, c := range contribs {
+				if c.WalletID != nil && *c.WalletID != "" {
+					perWallet[*c.WalletID] += c.Amount
+				}
+			}
+			var totalPositive float64
+			for _, v := range perWallet {
+				if v > 0 {
+					totalPositive += v
+				}
+			}
+			if totalPositive > 0 {
+				remaining := req.Amount
+				i := 0
+				keys := make([]string, 0, len(perWallet))
+				for wid, v := range perWallet {
+					if v > 0 {
+						keys = append(keys, wid)
+					}
+				}
+				for _, wid := range keys {
+					i++
+					var share float64
+					if i == len(keys) {
+						share = remaining // sisa pembulatan masuk ke yang terakhir
+					} else {
+						share = req.Amount * (perWallet[wid] / totalPositive)
+						remaining -= share
+					}
+					if share <= 0 {
+						continue
+					}
+					contrib := models.MainGoalContribution{
+						ID: genID("mgc"), MainGoalID: goal.ID, UserID: userID,
+						SourceType: "withdrawal", SourceID: "", WalletID: &wid,
+						Amount: -share, CreatedAt: now,
+					}
+					if err := tx.Create(&contrib).Error; err != nil {
+						return err
+					}
+				}
+			}
+		}
+
+		return tx.First(&updatedGoal, "id = ?", goal.ID).Error
+	})
+
+	switch err {
+	case nil:
+		return c.JSON(http.StatusOK, updatedGoal)
+	case errNoActiveGoal:
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "belum ada goal utama yang aktif"})
+	case errWithdrawTooMuch:
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "jumlah melebihi dana yang terkumpul di goal ini"})
+	default:
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to withdraw"})
+	}
 }
