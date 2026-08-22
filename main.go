@@ -144,6 +144,7 @@ func main() {
 	api.GET("/main-goal-requests", mainGoalH.ListRequests)
 	api.POST("/main-goal-requests/:id/approve", mainGoalH.Approve)
 	api.POST("/main-goal-requests/:id/reject", mainGoalH.Reject)
+	api.POST("/main-goal/contribute", mainGoalH.ContributeFromWallet)
 
 	// ---- FITUR 2: Template Wedding Planning ----
 	api.GET("/wedding/templates", weddingTmplH.ListTemplates)
