@@ -92,6 +92,7 @@ func main() {
 	api := e.Group("", appmw.JWTAuth(cfg.JWTSecret))
 
 	api.GET("/auth/me", authH.Me)
+	api.GET("/auth/partner", authH.GetPartner)
 	api.POST("/auth/link-partner", authH.LinkPartner)
 	api.POST("/auth/unlink-partner", authH.UnlinkPartner)
 	api.PATCH("/auth/profile", authH.UpdateProfile)
