@@ -323,5 +323,14 @@ type HabitScheduleEntry struct {
 	Title     string    `json:"title" gorm:"type:varchar(120)"`
 	Category  string    `json:"category" gorm:"type:varchar(30)"` // ibadah|kuliah|kerja|freelance|istirahat|keuangan|lainnya
 	Source    string    `json:"source" gorm:"type:varchar(10)"`   // ai|static|manual
-	CreatedAt time.Time `json:"createdAt"`
+	// ✅ FITUR: alokasi budget per kegiatan (mis. "Makan Siang" -> Rp15.000)
+	// supaya notif jadwal juga bisa munculkan takarannya, bukan cuma jam
+	// kegiatan. HANYA dikirim ke pemilik jadwal -- lihat catatan privasi
+	// di habit_handler.go GetPartnerSchedule.
+	Budget *float64 `json:"budget"`
+	// ActualSpent: realisasi yang diisi user setelah kegiatan itu
+	// dijalani, buat ketahuan kalau kepakai lebih dari alokasi
+	// (overbudget). Sama-sama privat, tidak pernah dikirim ke pasangan.
+	ActualSpent *float64  `json:"actualSpent"`
+	CreatedAt   time.Time `json:"createdAt"`
 }

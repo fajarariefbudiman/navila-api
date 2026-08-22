@@ -86,7 +86,7 @@ func (h *HabitHandler) SaveProfile(c echo.Context) error {
 			row := models.HabitScheduleEntry{
 				ID: genID("hs"), UserID: userID, DayOfWeek: e.DayOfWeek,
 				StartTime: e.StartTime, EndTime: e.EndTime, Title: e.Title,
-				Category: e.Category, Source: source, CreatedAt: now,
+				Category: e.Category, Budget: e.Budget, Source: source, CreatedAt: now,
 			}
 			if err := tx.Create(&row).Error; err != nil {
 				return err
@@ -110,6 +110,12 @@ func (h *HabitHandler) GetSchedule(c echo.Context) error {
 
 // GetPartnerSchedule - GET /habit/schedule/partner : jadwal pasangan,
 // READ-ONLY (tidak ada endpoint edit yang menerima userId pasangan).
+//
+// ✅ PRIVASI: budget & actualSpent SENGAJA di-null-kan di sini sebelum
+// dikirim ke client -- pasangan cuma boleh lihat KEGIATANNYA (judul,
+// jam, kategori), bukan takaran/realisasi uangnya. Ini dilakukan di
+// server, bukan cuma disembunyikan di UI, supaya data itu memang tidak
+// pernah ikut terkirim lewat API sama sekali.
 func (h *HabitHandler) GetPartnerSchedule(c echo.Context) error {
 	userID := c.Get("userId").(string)
 	var me models.User
@@ -118,15 +124,20 @@ func (h *HabitHandler) GetPartnerSchedule(c echo.Context) error {
 	}
 	var rows []models.HabitScheduleEntry
 	h.DB.Where("user_id = ?", *me.PartnerID).Order("day_of_week asc, start_time asc").Find(&rows)
+	for i := range rows {
+		rows[i].Budget = nil
+		rows[i].ActualSpent = nil
+	}
 	return c.JSON(http.StatusOK, rows)
 }
 
 type habitEntryReq struct {
-	DayOfWeek int    `json:"dayOfWeek"`
-	StartTime string `json:"startTime"`
-	EndTime   string `json:"endTime"`
-	Title     string `json:"title"`
-	Category  string `json:"category"`
+	DayOfWeek int      `json:"dayOfWeek"`
+	StartTime string   `json:"startTime"`
+	EndTime   string   `json:"endTime"`
+	Title     string   `json:"title"`
+	Category  string   `json:"category"`
+	Budget    *float64 `json:"budget"`
 }
 
 // CreateEntry - POST /habit/schedule : tambah blok manual (mis. jadwal
@@ -140,7 +151,7 @@ func (h *HabitHandler) CreateEntry(c echo.Context) error {
 	row := models.HabitScheduleEntry{
 		ID: genID("hs"), UserID: userID, DayOfWeek: req.DayOfWeek,
 		StartTime: req.StartTime, EndTime: req.EndTime, Title: req.Title,
-		Category: req.Category, Source: "manual", CreatedAt: time.Now(),
+		Category: req.Category, Budget: req.Budget, Source: "manual", CreatedAt: time.Now(),
 	}
 	if err := h.DB.Create(&row).Error; err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to create entry"})
