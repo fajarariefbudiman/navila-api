@@ -253,12 +253,15 @@ func (h *MainGoalHandler) resolveRequest(c echo.Context, status string) error {
 // pilih "Masukkan ke goals anda?", ATAU dari MainGoalHandler.ContributeFromWallet
 // saat user eksplisit mengisi goal dari saldo yang sudah ada di dompet.
 //
-// ✅ PENTING (akuntansi): kontribusi TIDAK langsung memotong saldo wallet
-// saat ini terjadi -- supaya uangnya tidak dihitung dobel selama masa
-// menabung (progress goal cuma "menandai" berapa dari saldo yang sudah
-// dikomit). Saldo wallet BARU benar-benar dipotong sekali saja, tepat
-// saat goal mencapai 100% (lihat settleMainGoalWallets), merepresentasikan
-// "uangnya resmi sudah dipakai/dibuat jadi goal itu".
+// ✅ PENTING (akuntansi): kontribusi TIDAK PERNAH memotong saldo wallet,
+// baik saat kontribusi terjadi MAUPUN saat goal mencapai 100%. Goal Utama
+// murni pelacak progress menabung (visual/label), bukan mekanisme
+// pemindahan uang. Alasannya: kalau Goal Utama dipakai untuk "Dana
+// Nikah" dan otomatis motong wallet saat tercapai, itu akan BENTROK
+// dengan Menu Pernikahan yang JUGA motong wallet sendiri tiap pos
+// ditandai lunas -- uang yang sama kepotong dua kali. Saldo dompet cuma
+// benar-benar berkurang lewat jalur normal: transaksi withdraw biasa,
+// atau lewat Menu Pernikahan saat sebuah pos ditandai dibayar.
 func contributeToMainGoal(tx *gorm.DB, userID string, amount float64, sourceType, sourceID string, walletID *string) (*models.MainGoal, error) {
 	var me models.User
 	if err := tx.First(&me, "id = ?", userID).Error; err != nil {
@@ -301,77 +304,33 @@ func contributeToMainGoal(tx *gorm.DB, userID string, amount float64, sourceType
 	goal.CurrentAmount = newAmount
 	if achieved {
 		goal.Status = "achieved"
-		// ✅ Goal baru saja mencapai target -- sekarang saatnya benar-benar
-		// memotong saldo tiap dompet yang berkontribusi, sesuai total yang
-		// pernah "dijanjikan" dari dompet itu. Sebelum titik ini saldo
-		// wallet TIDAK pernah dipotong oleh kontribusi goal manapun.
-		if err := settleMainGoalWallets(tx, goal.ID); err != nil {
-			return nil, err
-		}
+		// ✅ BUG FIX: sebelumnya di sini ada auto-potong saldo semua
+		// dompet yang berkontribusi begitu goal tercapai (settleMainGoalWallets).
+		// Itu keliru untuk kasus Goal Utama = "Dana Nikah", karena Menu
+		// Pernikahan JUGA motong dompet sendiri tiap kali sebuah pos
+		// ditandai lunas (kalau ditautkan ke dompet) -- akibatnya uang
+		// yang sama kepotong DUA KALI: sekali pas goal "selesai", sekali
+		// lagi pas tiap item pernikahan dibayar.
+		//
+		// Sekarang Goal Utama MURNI pelacak progress menabung (goal
+		// tercapai = perayaan, bukan pemicu transaksi apa pun). Yang
+		// benar-benar memotong saldo dompet cuma SATU tempat: Menu
+		// Pernikahan (WeddingCategory.Paid naik -> potong wallet
+		// terkait), karena cuma di situ tercatat persis uang itu dibayar
+		// ke vendor mana dan kapan. Kalau Goal Utama dipakai untuk hal
+		// selain pernikahan (mis. Umrah) yang tidak ada pelacak
+		// pengeluaran granular semacam itu, potong saldonya cukup lewat
+		// transaksi withdraw manual biasa saat benar-benar dibelanjakan.
 	}
 	return &goal, nil
-}
-
-// settleMainGoalWallets dipanggil TEPAT SEKALI saat sebuah MainGoal baru
-// saja mencapai status "achieved". Menjumlahkan semua kontribusi goal ini
-// per dompet asal (WalletID), memotong saldo tiap dompet itu sebesar
-// jumlahnya, dan mencatat satu baris Transaction (type=withdraw) per
-// dompet supaya riwayat transaksi tetap akurat & bisa ditelusuri --
-// merepresentasikan "uang ini resmi sudah dipakai untuk goal yang selesai".
-func settleMainGoalWallets(tx *gorm.DB, mainGoalID string) error {
-	var contribs []models.MainGoalContribution
-	if err := tx.Where("main_goal_id = ? AND wallet_id IS NOT NULL", mainGoalID).Find(&contribs).Error; err != nil {
-		return err
-	}
-
-	var goal models.MainGoal
-	if err := tx.First(&goal, "id = ?", mainGoalID).Error; err != nil {
-		return err
-	}
-
-	perWallet := map[string]float64{}
-	perWalletUser := map[string]string{}
-	for _, c := range contribs {
-		if c.WalletID == nil || *c.WalletID == "" {
-			continue
-		}
-		perWallet[*c.WalletID] += c.Amount
-		perWalletUser[*c.WalletID] = c.UserID
-	}
-
-	for walletID, total := range perWallet {
-		if total <= 0 {
-			continue
-		}
-		if err := tx.Model(&models.Wallet{}).Where("id = ?", walletID).
-			Update("balance", gorm.Expr("balance - ?", total)).Error; err != nil {
-			return err
-		}
-		note := "Dana untuk goal \"" + goal.Name + "\" tercapai"
-		settleTx := models.Transaction{
-			ID:        genID("t"),
-			UserID:    perWalletUser[walletID],
-			WalletID:  walletID,
-			Type:      "withdraw",
-			Amount:    total,
-			Category:  "Goal Tercapai",
-			Note:      &note,
-			Date:      time.Now().Format("2006-01-02"),
-			CreatedAt: time.Now(),
-		}
-		if err := tx.Create(&settleTx).Error; err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // ContributeFromWallet - POST /main-goal/contribute
 // ✅ FITUR: input eksplisit "ambil dari dompet mana, berapa" untuk isi
 // Goal Utama dari SALDO YANG SUDAH ADA di dompet (bukan cuma nebeng di
-// form deposit baru). Sesuai desain akuntansi di contributeToMainGoal:
-// saldo dompet TIDAK langsung dipotong di sini -- baru dipotong nanti
-// sekali saat goal ini mencapai 100% (lihat settleMainGoalWallets).
+// form deposit baru). Kontribusi ini MURNI menandai progress tabungan --
+// tidak memotong saldo dompet sama sekali (lihat catatan akuntansi di
+// contributeToMainGoal).
 type contributeFromWalletReq struct {
 	WalletID string  `json:"walletId"`
 	Amount   float64 `json:"amount"`
@@ -417,17 +376,16 @@ func (h *MainGoalHandler) ContributeFromWallet(c echo.Context) error {
 // Withdraw - POST /main-goal/withdraw
 // ✅ FITUR: kurangi dana Goal Utama -- misal goal "Umrah" ternyata mau
 // dialihkan prioritasnya ke "Mahar" dulu. Karena kontribusi tidak
-// pernah benar-benar memotong saldo wallet sampai goal 100% (lihat
-// contributeToMainGoal), mengurangi dana di sini juga TIDAK
-// mengembalikan apa pun ke wallet -- uangnya memang tidak pernah
-// kemana-mana, cuma dilepas statusnya dari "sudah dikomit ke goal ini"
-// jadi bebas lagi (bisa dikomit ulang ke goal lain, atau dibiarkan).
+// pernah memotong saldo wallet sama sekali (lihat contributeToMainGoal),
+// mengurangi dana di sini juga TIDAK mengembalikan apa pun ke wallet --
+// uangnya memang tidak pernah kemana-mana, cuma dilepas statusnya dari
+// "sudah dikomit ke goal ini" jadi bebas lagi (bisa dikomit ulang ke
+// goal lain, atau dibiarkan).
 //
 // Kalau `walletId` diisi: pengurangan diambil murni dari kontribusi
 // yang berasal dari dompet itu saja. Kalau tidak diisi: pengurangan
 // dibagi proporsional ke semua dompet yang pernah berkontribusi, supaya
-// jejak per-dompetnya tetap akurat kalau nanti goal ini toh mencapai
-// 100% (settleMainGoalWallets butuh angka per-dompet yang benar).
+// riwayat per-dompetnya tetap akurat untuk keperluan audit/histori.
 type withdrawMainGoalReq struct {
 	Amount   float64 `json:"amount"`
 	WalletID *string `json:"walletId"`
