@@ -71,7 +71,7 @@ func (h *CashflowHandler) Create(c echo.Context) error {
 		}
 		// ✅ FITUR: opsi "Masukkan ke goals anda?" untuk pemasukan (income).
 		if req.ContributeToMainGoal && body.Type == "income" {
-			g, err := contributeToMainGoal(tx, userID, body.Amount, "cashflow_income", body.ID)
+			g, err := contributeToMainGoal(tx, userID, body.Amount, "cashflow_income", body.ID, body.WalletID)
 			if err != nil {
 				return err
 			}

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 	"sort"
 	"strings"
@@ -11,6 +12,8 @@ import (
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
 )
+
+var errNoActiveGoal = errors.New("no active main goal")
 
 type MainGoalHandler struct{ DB *gorm.DB }
 
@@ -246,10 +249,16 @@ func (h *MainGoalHandler) resolveRequest(c echo.Context, status string) error {
 
 // Contribute menambah CurrentAmount goal aktif pasangan sejumlah `amount`,
 // dipanggil dari transaction_handler.go / cashflow_handler.go saat user
-// pilih "Masukkan ke goals anda?". Kalau CurrentAmount >= TargetAmount,
-// goal langsung ditandai "achieved" supaya Flutter bisa munculkan layar
-// perayaan.
-func contributeToMainGoal(tx *gorm.DB, userID string, amount float64, sourceType, sourceID string) (*models.MainGoal, error) {
+// pilih "Masukkan ke goals anda?", ATAU dari MainGoalHandler.ContributeFromWallet
+// saat user eksplisit mengisi goal dari saldo yang sudah ada di dompet.
+//
+// ✅ PENTING (akuntansi): kontribusi TIDAK langsung memotong saldo wallet
+// saat ini terjadi -- supaya uangnya tidak dihitung dobel selama masa
+// menabung (progress goal cuma "menandai" berapa dari saldo yang sudah
+// dikomit). Saldo wallet BARU benar-benar dipotong sekali saja, tepat
+// saat goal mencapai 100% (lihat settleMainGoalWallets), merepresentasikan
+// "uangnya resmi sudah dipakai/dibuat jadi goal itu".
+func contributeToMainGoal(tx *gorm.DB, userID string, amount float64, sourceType, sourceID string, walletID *string) (*models.MainGoal, error) {
 	var me models.User
 	if err := tx.First(&me, "id = ?", userID).Error; err != nil {
 		return nil, err
@@ -280,6 +289,7 @@ func contributeToMainGoal(tx *gorm.DB, userID string, amount float64, sourceType
 		UserID:     userID,
 		SourceType: sourceType,
 		SourceID:   sourceID,
+		WalletID:   walletID,
 		Amount:     amount,
 		CreatedAt:  time.Now(),
 	}
@@ -290,6 +300,115 @@ func contributeToMainGoal(tx *gorm.DB, userID string, amount float64, sourceType
 	goal.CurrentAmount = newAmount
 	if achieved {
 		goal.Status = "achieved"
+		// ✅ Goal baru saja mencapai target -- sekarang saatnya benar-benar
+		// memotong saldo tiap dompet yang berkontribusi, sesuai total yang
+		// pernah "dijanjikan" dari dompet itu. Sebelum titik ini saldo
+		// wallet TIDAK pernah dipotong oleh kontribusi goal manapun.
+		if err := settleMainGoalWallets(tx, goal.ID); err != nil {
+			return nil, err
+		}
 	}
 	return &goal, nil
+}
+
+// settleMainGoalWallets dipanggil TEPAT SEKALI saat sebuah MainGoal baru
+// saja mencapai status "achieved". Menjumlahkan semua kontribusi goal ini
+// per dompet asal (WalletID), memotong saldo tiap dompet itu sebesar
+// jumlahnya, dan mencatat satu baris Transaction (type=withdraw) per
+// dompet supaya riwayat transaksi tetap akurat & bisa ditelusuri --
+// merepresentasikan "uang ini resmi sudah dipakai untuk goal yang selesai".
+func settleMainGoalWallets(tx *gorm.DB, mainGoalID string) error {
+	var contribs []models.MainGoalContribution
+	if err := tx.Where("main_goal_id = ? AND wallet_id IS NOT NULL", mainGoalID).Find(&contribs).Error; err != nil {
+		return err
+	}
+
+	var goal models.MainGoal
+	if err := tx.First(&goal, "id = ?", mainGoalID).Error; err != nil {
+		return err
+	}
+
+	perWallet := map[string]float64{}
+	perWalletUser := map[string]string{}
+	for _, c := range contribs {
+		if c.WalletID == nil || *c.WalletID == "" {
+			continue
+		}
+		perWallet[*c.WalletID] += c.Amount
+		perWalletUser[*c.WalletID] = c.UserID
+	}
+
+	for walletID, total := range perWallet {
+		if total <= 0 {
+			continue
+		}
+		if err := tx.Model(&models.Wallet{}).Where("id = ?", walletID).
+			Update("balance", gorm.Expr("balance - ?", total)).Error; err != nil {
+			return err
+		}
+		note := "Dana untuk goal \"" + goal.Name + "\" tercapai"
+		settleTx := models.Transaction{
+			ID:        genID("t"),
+			UserID:    perWalletUser[walletID],
+			WalletID:  walletID,
+			Type:      "withdraw",
+			Amount:    total,
+			Category:  "Goal Tercapai",
+			Note:      &note,
+			Date:      time.Now().Format("2006-01-02"),
+			CreatedAt: time.Now(),
+		}
+		if err := tx.Create(&settleTx).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ContributeFromWallet - POST /main-goal/contribute
+// ✅ FITUR: input eksplisit "ambil dari dompet mana, berapa" untuk isi
+// Goal Utama dari SALDO YANG SUDAH ADA di dompet (bukan cuma nebeng di
+// form deposit baru). Sesuai desain akuntansi di contributeToMainGoal:
+// saldo dompet TIDAK langsung dipotong di sini -- baru dipotong nanti
+// sekali saat goal ini mencapai 100% (lihat settleMainGoalWallets).
+type contributeFromWalletReq struct {
+	WalletID string  `json:"walletId"`
+	Amount   float64 `json:"amount"`
+}
+
+func (h *MainGoalHandler) ContributeFromWallet(c echo.Context) error {
+	userID := c.Get("userId").(string)
+	var req contributeFromWalletReq
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid payload"})
+	}
+	if req.WalletID == "" || req.Amount <= 0 {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "walletId dan amount wajib diisi"})
+	}
+
+	// Pastikan dompet ini benar milik user yang login.
+	var wallet models.Wallet
+	if err := h.DB.First(&wallet, "id = ? AND user_id = ?", req.WalletID, userID).Error; err != nil {
+		return c.JSON(http.StatusNotFound, echo.Map{"error": "dompet tidak ditemukan"})
+	}
+
+	var updatedGoal *models.MainGoal
+	err := h.DB.Transaction(func(tx *gorm.DB) error {
+		g, err := contributeToMainGoal(tx, userID, req.Amount, "wallet_direct", req.WalletID, &req.WalletID)
+		if err != nil {
+			return err
+		}
+		if g == nil {
+			return errNoActiveGoal
+		}
+		updatedGoal = g
+		return nil
+	})
+	if err == errNoActiveGoal {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "belum ada goal utama yang aktif"})
+	}
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to contribute"})
+	}
+	return c.JSON(http.StatusOK, updatedGoal)
 }

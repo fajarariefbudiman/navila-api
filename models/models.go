@@ -228,8 +228,14 @@ type MainGoalContribution struct {
 	ID         string    `json:"id" gorm:"primaryKey;type:varchar(40)"`
 	MainGoalID string    `json:"mainGoalId" gorm:"type:varchar(40);index"`
 	UserID     string    `json:"userId" gorm:"type:varchar(40);index"`
-	SourceType string    `json:"sourceType" gorm:"type:varchar(20)"` // wallet_deposit | cashflow_income
+	SourceType string    `json:"sourceType" gorm:"type:varchar(20)"` // wallet_deposit | cashflow_income | wallet_direct
 	SourceID   string    `json:"sourceId" gorm:"type:varchar(40)"`
+	// WalletID: dompet asal dana kontribusi ini. Dicatat supaya saat goal
+	// tercapai, saldo tiap dompet yang berkontribusi bisa dipotong sesuai
+	// jumlah yang sudah "dijanjikan" ke goal -- lihat settleMainGoalWallets
+	// di main_goal_handler.go. Nullable karena data lama sebelum kolom ini
+	// ada tidak punya wallet asal yang tercatat.
+	WalletID   *string   `json:"walletId" gorm:"type:varchar(40)"`
 	Amount     float64   `json:"amount"`
 	CreatedAt  time.Time `json:"createdAt"`
 }

@@ -68,7 +68,7 @@ func (h *TransactionHandler) Create(c echo.Context) error {
 		// saldo, dana ini juga ikut nambah ke Goal Utama Pasangan yang
 		// sedang aktif (kalau ada).
 		if req.ContributeToMainGoal && body.Type == "deposit" {
-			g, err := contributeToMainGoal(tx, userID, body.Amount, "wallet_deposit", body.ID)
+			g, err := contributeToMainGoal(tx, userID, body.Amount, "wallet_deposit", body.ID, &body.WalletID)
 			if err != nil {
 				return err
 			}
