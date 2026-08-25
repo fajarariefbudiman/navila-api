@@ -285,6 +285,13 @@ type WeddingTemplateChangeRequest struct {
 	ToUserID       string     `json:"toUserId" gorm:"type:varchar(40);index"`
 	OldTemplateKey string     `json:"oldTemplateKey" gorm:"type:varchar(60)"`
 	NewTemplateKey string     `json:"newTemplateKey" gorm:"type:varchar(60)"`
+	// FIX: sebelumnya nilai ini tidak pernah disimpan sama sekali di
+	// request-nya, jadi begitu pasangan approve, tidak ada informasi
+	// budget yang bisa dipakai untuk benar-benar generate pos-pos
+	// anggaran dari template baru -- approval jadi tidak berefek apa-apa
+	// selain mencatat "template terpilih" tanpa isi.
+	TotalBudget    float64    `json:"totalBudget"`
+	WalletID       *string    `json:"walletId" gorm:"type:varchar(40)"`
 	Status         string     `json:"status" gorm:"type:varchar(10)"` // pending|approved|rejected
 	CreatedAt      time.Time  `json:"createdAt"`
 	ResolvedAt     *time.Time `json:"resolvedAt"`

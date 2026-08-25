@@ -253,8 +253,14 @@ func (h *WeddingTemplateHandler) ApplyTemplate(c echo.Context) error {
 			ToUserID:       *me.PartnerID,
 			OldTemplateKey: existing.TemplateKey,
 			NewTemplateKey: req.TemplateKey,
-			Status:         "pending",
-			CreatedAt:      time.Now(),
+			// FIX: sebelumnya TotalBudget & WalletID dari request ini
+			// tidak pernah diteruskan ke reqRow -- hilang begitu saja,
+			// jadi waktu di-approve tidak ada info yang bisa dipakai
+			// buat generate pos-pos anggarannya.
+			TotalBudget: req.TotalBudget,
+			WalletID:    req.WalletID,
+			Status:      "pending",
+			CreatedAt:   time.Now(),
 		}
 		if err := h.DB.Create(&reqRow).Error; err != nil {
 			return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to create request"})
@@ -271,28 +277,41 @@ func (h *WeddingTemplateHandler) ApplyTemplate(c echo.Context) error {
 		if err := tx.Create(&sel).Error; err != nil {
 			return err
 		}
-		for _, item := range tmpl.Items {
-			cat := models.WeddingCategory{
-				ID: genID("wc"), CoupleID: me.ID, Name: item.Name,
-				Budget: req.TotalBudget * item.Percent / 100, Paid: 0,
-				// BUG FIX: status harus salah satu dari 4 nilai yang dikenal
-				// Flutter ('planning'|'booked'|'paid'|'done') -- sebelumnya
-				// dipakai "belum" yang tidak ada di dropdown, jadi
-				// DropdownButton di detail item error begitu dibuka.
-				Status: "planning", Icon: item.Icon, CreatedAt: time.Now(),
-				WalletID: req.WalletID,
-			}
-			if err := tx.Create(&cat).Error; err != nil {
-				return err
-			}
-			created = append(created, cat)
-		}
-		return nil
+		var genErr error
+		created, genErr = createCategoriesFromTemplate(tx, tmpl, me.ID, req.TotalBudget, req.WalletID)
+		return genErr
 	})
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to apply template"})
 	}
 	return c.JSON(http.StatusCreated, echo.Map{"selection": req.TemplateKey, "categories": created})
+}
+
+// createCategoriesFromTemplate: helper yang men-generate WeddingCategory
+// dari sebuah WeddingTemplateDef, dipakai bersama oleh ApplyTemplate
+// (penerapan pertama kali) dan resolve() (approve permintaan ganti
+// template) supaya keduanya benar-benar membuat pos-pos anggaran yang
+// sama, bukan cuma mencatat "template terpilih" tanpa isi.
+func createCategoriesFromTemplate(tx *gorm.DB, tmpl *WeddingTemplateDef,
+	coupleID string, totalBudget float64, walletID *string) ([]models.WeddingCategory, error) {
+	var created []models.WeddingCategory
+	for _, item := range tmpl.Items {
+		cat := models.WeddingCategory{
+			ID: genID("wc"), CoupleID: coupleID, Name: item.Name,
+			Budget: totalBudget * item.Percent / 100, Paid: 0,
+			// BUG FIX: status harus salah satu dari 4 nilai yang dikenal
+			// Flutter ('planning'|'booked'|'paid'|'done') -- sebelumnya
+			// dipakai "belum" yang tidak ada di dropdown, jadi
+			// DropdownButton di detail item error begitu dibuka.
+			Status: "planning", Icon: item.Icon, CreatedAt: time.Now(),
+			WalletID: walletID,
+		}
+		if err := tx.Create(&cat).Error; err != nil {
+			return nil, err
+		}
+		created = append(created, cat)
+	}
+	return created, nil
 }
 
 func (h *WeddingTemplateHandler) ListRequests(c echo.Context) error {
@@ -314,6 +333,7 @@ func (h *WeddingTemplateHandler) resolve(c echo.Context, status string) error {
 		return c.JSON(http.StatusNotFound, echo.Map{"error": "request not found or already resolved"})
 	}
 	now := time.Now()
+	var created []models.WeddingCategory
 	err := h.DB.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&reqRow).Updates(map[string]interface{}{
 			"status": status, "resolved_at": now,
@@ -327,7 +347,27 @@ func (h *WeddingTemplateHandler) resolve(c echo.Context, status string) error {
 			ID: genID("wts"), CoupleKey: reqRow.CoupleKey, TemplateKey: reqRow.NewTemplateKey,
 			SelectedBy: reqRow.FromUserID, CreatedAt: now,
 		}
-		return tx.Create(&sel).Error
+		if err := tx.Create(&sel).Error; err != nil {
+			return err
+		}
+		// FIX: sebelumnya berhenti sampai sini -- cuma mencatat
+		// WeddingTemplateSelection tanpa pernah benar-benar membuat
+		// WeddingCategory dari template barunya. Akibatnya approve
+		// "berhasil" (status berubah jadi approved) tapi tidak ada
+		// perubahan apa pun yang kelihatan di layar Pernikahan, persis
+		// seperti yang dilaporkan: "udah acc pasangan" tapi templatenya
+		// tidak berubah.
+		tmpl := findTemplate(reqRow.NewTemplateKey)
+		if tmpl == nil {
+			// Template lama mungkin sudah dihapus dari daftar server --
+			// jangan gagalkan approve-nya, tapi tidak ada item yang
+			// bisa digenerate.
+			return nil
+		}
+		var genErr error
+		created, genErr = createCategoriesFromTemplate(
+			tx, tmpl, reqRow.FromUserID, reqRow.TotalBudget, reqRow.WalletID)
+		return genErr
 		// NOTE: item WeddingCategory lama sengaja TIDAK dihapus otomatis --
 		// pasangan bisa bersih-bersih manual kalau memang mau mulai ulang,
 		// supaya data yang sudah terlanjur dibayar (Paid > 0) tidak hilang.
@@ -335,5 +375,5 @@ func (h *WeddingTemplateHandler) resolve(c echo.Context, status string) error {
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to resolve request"})
 	}
-	return c.JSON(http.StatusOK, echo.Map{"status": status})
+	return c.JSON(http.StatusOK, echo.Map{"status": status, "categories": created})
 }
