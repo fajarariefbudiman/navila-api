@@ -94,6 +94,15 @@ func (h *WeddingHandler) Update(c echo.Context) error {
 	}
 	delete(patch, "id")
 	delete(patch, "coupleId")
+	// FIX: "createdAt" sebelumnya tidak ikut dihapus dari patch --
+	// Flutter selalu mengirim seluruh object (termasuk createdAt) lewat
+	// upsertWedding()/toJson(), jadi tiap PATCH mencoba menimpa kolom
+	// created_at dengan string ISO8601 mentah. Tergantung driver
+	// Postgres, ini bisa memicu error tipe data yang membatalkan
+	// SELURUH update dalam transaksi (termasuk field lain seperti
+	// budget) -- padahal endpoint ini memang tidak seharusnya mengubah
+	// createdAt sama sekali.
+	delete(patch, "createdAt")
 	patch = camelKeysToSnake(patch)
 
 	walletID := before.WalletID
@@ -337,4 +346,3 @@ func (h *WeddingHandler) BulkDelete(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, echo.Map{"deleted": result.RowsAffected})
 }
-
