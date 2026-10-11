@@ -98,10 +98,6 @@ func safeStr(s *string) string {
 	return *s
 }
 
-// ---------------------------------------------------------------------
-// Static generator: fallback berbasis aturan sederhana kalau AI tidak
-// tersedia. Tetap menghasilkan jadwal Senin-Minggu yang masuk akal.
-// ---------------------------------------------------------------------
 func generateScheduleStatic(p models.HabitProfile) []generatedEntry {
 	var out []generatedEntry
 	prayerTimes := []struct{ start, end, title string }{
@@ -112,9 +108,6 @@ func generateScheduleStatic(p models.HabitProfile) []generatedEntry {
 		{"19:15", "19:45", "Sholat Isya"},
 	}
 
-	// ✅ FITUR: saran alokasi budget per kegiatan makan, dipecah dari
-	// FoodBudget bulanan (dibagi 30 hari, lalu dibagi porsi per waktu
-	// makan -- sarapan lebih kecil, makan siang paling besar).
 	dailyFood := p.FoodBudget / 30
 	breakfastBudget := dailyFood * 0.20
 	lunchBudget := dailyFood * 0.45
