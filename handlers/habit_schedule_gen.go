@@ -10,22 +10,15 @@ import (
 	"goals-api/models"
 )
 
-// generatedEntry: bentuk mentah satu blok jadwal sebelum di-attach ID/UserID.
 type generatedEntry struct {
 	DayOfWeek int      `json:"dayOfWeek"`
 	StartTime string   `json:"startTime"`
 	EndTime   string   `json:"endTime"`
 	Title     string   `json:"title"`
 	Category  string   `json:"category"`
-	// Budget: saran alokasi dana buat kegiatan ini (mis. makan siang),
-	// diisi otomatis dari FoodBudget waktu di-generate. Opsional --
-	// kegiatan non-uang (ibadah, kuliah, dll) dibiarkan nil.
 	Budget    *float64 `json:"budget"`
 }
 
-// generateSchedule adalah pintu masuk tunggal: coba AI dulu kalau API key
-// tersedia, kalau gagal/tidak ada key, otomatis fallback ke generator
-// statis berbasis aturan supaya fitur tetap jalan tanpa AI.
 func generateSchedule(apiKey string, p models.HabitProfile) []generatedEntry {
 	if apiKey != "" {
 		if entries, err := generateScheduleAI(apiKey, p); err == nil && len(entries) > 0 {
@@ -35,11 +28,6 @@ func generateSchedule(apiKey string, p models.HabitProfile) []generatedEntry {
 	return generateScheduleStatic(p)
 }
 
-// ---------------------------------------------------------------------
-// AI generator: memanggil Claude API (model kecil, cukup buat tugas
-// terstruktur seperti ini) dan minta jawaban JSON array murni supaya
-// gampang di-parse langsung jadi []generatedEntry.
-// ---------------------------------------------------------------------
 func generateScheduleAI(apiKey string, p models.HabitProfile) ([]generatedEntry, error) {
 	prompt := fmt.Sprintf(`Buatkan jadwal mingguan (Senin=1 s.d Minggu=7) untuk satu orang dengan profil berikut:
 - Gaji per bulan: %.0f

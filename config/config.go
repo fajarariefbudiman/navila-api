@@ -18,10 +18,6 @@ type Config struct {
 	JWTSecret       string
 	EncKeyHex       string
 	AllowOrigin     string
-	// AnthropicAPIKey: opsional. Kalau diisi, generate jadwal habit
-	// (handlers/habit_handler.go) memakai Claude API supaya jadwalnya
-	// lebih natural & kontekstual. Kalau kosong, otomatis fallback ke
-	// generator statis berbasis aturan (tetap jalan, cuma kurang lentur).
 	AnthropicAPIKey string
 }
 
@@ -39,12 +35,12 @@ func Load() *Config {
 	cfg := &Config{
 		AppPort:     getEnv("APP_PORT", "8080"),
 		DBUser:      getEnv("DB_USER", "root"),
-		DBPassword:  getEnv("DB_PASSWORD", "aHZTWyawgqdXUSczDTZdXNKLPxsXosQw"),
+		DBPassword:  getEnv("DB_PASSWORD", "aHZTWyawgqdXUS********w"),
 		DBHost:      getEnv("DB_HOST", "mysql.railway.internal"),
 		DBPort:      getEnv("DB_PORT", "3306"),
 		DBName:      getEnv("DB_NAME", "railway"),
 		JWTSecret:   getEnv("JWT_SECRET", "change-this-jwt-secret"),
-		EncKeyHex:   getEnv("APP_ENC_KEY", "39a33c66bece4d9450357bdba3341965b40024d9105da0ddc63b6ea0279b6827"),
+		EncKeyHex:   getEnv("APP_ENC_KEY", "*******"),
 		AllowOrigin: getEnv("ALLOW_ORIGIN", "*"),
 		AnthropicAPIKey: getEnv("ANTHROPIC_API_KEY", ""),
 	}

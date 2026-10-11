@@ -46,7 +46,7 @@ type User struct {
 	Email             string    `json:"email" gorm:"type:varchar(160);uniqueIndex"`
 	Password          string    `json:"-" gorm:"type:varchar(255)"`
 	Gender            string    `json:"gender" gorm:"type:varchar(10)"`
-	Mode              string    `json:"mode" gorm:"type:varchar(10);default:'jomblo'"` // jomblo | myKisah
+	Mode              string    `json:"mode" gorm:"type:varchar(10);default:'jomblo'"` 
 	PartnerID         *string   `json:"partnerId" gorm:"type:varchar(40)"`
 	PartnerCode       string    `json:"partnerCode" gorm:"type:varchar(20);uniqueIndex"`
 	WeddingDate       *string   `json:"weddingDate" gorm:"type:varchar(10)"`
@@ -78,7 +78,7 @@ type Budget struct {
 	UserID          string    `json:"userId" gorm:"type:varchar(40);index"`
 	Category        string    `json:"category" gorm:"type:varchar(80)"`
 	AllocatedAmount float64   `json:"allocatedAmount"`
-	Period          string    `json:"period" gorm:"type:varchar(7)"` // YYYY-MM
+	Period          string    `json:"period" gorm:"type:varchar(7)"`
 	CreatedAt       time.Time `json:"createdAt"`
 }
 
@@ -89,7 +89,7 @@ type Transaction struct {
 	ID                    string    `json:"id" gorm:"primaryKey;type:varchar(40)"`
 	UserID                string    `json:"userId" gorm:"type:varchar(40);index"`
 	WalletID              string    `json:"walletId" gorm:"type:varchar(40);index"`
-	Type                  string    `json:"type" gorm:"type:varchar(10)"` // deposit | withdraw
+	Type                  string    `json:"type" gorm:"type:varchar(10)"` 
 	Amount                float64   `json:"amount"`
 	Category              string    `json:"category" gorm:"type:varchar(80)"`
 	Note                  *string   `json:"note" gorm:"type:varchar(255)"`
@@ -105,7 +105,7 @@ type CashFlow struct {
 	ID        string    `json:"id" gorm:"primaryKey;type:varchar(40)"`
 	UserID    string    `json:"userId" gorm:"type:varchar(40);index"`
 	WalletID  *string   `json:"walletId" gorm:"type:varchar(40);index"`
-	Type      string    `json:"type" gorm:"type:varchar(10)"` // income | expense
+	Type      string    `json:"type" gorm:"type:varchar(10)"`
 	Category  string    `json:"category" gorm:"type:varchar(80)"`
 	Amount    float64   `json:"amount"`
 	Note      *string   `json:"note" gorm:"type:varchar(255)"`
@@ -125,11 +125,7 @@ type WeddingCategory struct {
 	Vendor    *string   `json:"vendor" gorm:"type:varchar(160)"`
 	Status    string    `json:"status" gorm:"type:varchar(20)"`
 	Notes     *string   `json:"notes" gorm:"type:varchar(255)"`
-	Icon      string    `json:"icon" gorm:"type:varchar(40)"` // Font Awesome icon key, e.g. "building"
-	// WalletID: tabungan/kas yang jadi sumber dana pos ini. Kalau diisi,
-	// setiap kali `Paid` bertambah (misal ditandai "lunas"/"done"), saldo
-	// wallet ini otomatis berkurang sejumlah kenaikan Paid -- lihat
-	// wedding_handler.go Update().
+	Icon      string    `json:"icon" gorm:"type:varchar(40)"` 
 	WalletID  *string   `json:"walletId" gorm:"type:varchar(40)"`
 	CreatedAt time.Time `json:"createdAt"`
 }
@@ -140,15 +136,13 @@ type WeddingCategory struct {
 type Plan struct {
 	ID          string    `json:"id" gorm:"primaryKey;type:varchar(40)"`
 	UserID      string    `json:"userId" gorm:"type:varchar(40);index"`
-	Type        string    `json:"type" gorm:"type:varchar(20)"` // mine | partner | together
+	Type        string    `json:"type" gorm:"type:varchar(20)"` 
 	Title       string    `json:"title" gorm:"type:varchar(160)"`
 	Description *string   `json:"description" gorm:"type:varchar(500)"`
 	Category    string    `json:"category" gorm:"type:varchar(40)"`
 	TargetDate  *string   `json:"targetDate" gorm:"type:varchar(10)"`
 	Budget      *float64  `json:"budget"`
 	Status      string    `json:"status" gorm:"type:varchar(20)"`
-	// ✅ Progress (0-100) -- dihitung otomatis dari Subtasks (persis
-	// seperti Goal), supaya konsisten: cek subtask, persen ikut naik.
 	Progress    int       `json:"progress"`
 	Subtasks    Subtasks  `json:"subtasks" gorm:"type:json"`
 	CreatedAt   time.Time `json:"createdAt"`
@@ -180,7 +174,7 @@ type Goal struct {
 type BackupLog struct {
 	ID        uint      `json:"id" gorm:"primaryKey;autoIncrement"`
 	UserID    string    `json:"userId" gorm:"type:varchar(40);index"`
-	Action    string    `json:"action" gorm:"type:varchar(10)"` // export | import
+	Action    string    `json:"action" gorm:"type:varchar(10)"`
 	CreatedAt time.Time `json:"createdAt"`
 }
 
@@ -195,28 +189,20 @@ type FundChangeRequest struct {
 	ToUserID   string     `json:"toUserId" gorm:"type:varchar(40);index"`
 	OldAmount  float64    `json:"oldAmount"`
 	NewAmount  float64    `json:"newAmount"`
-	Status     string     `json:"status" gorm:"type:varchar(10)"` // pending|approved|rejected
+	Status     string     `json:"status" gorm:"type:varchar(10)"` 
 	CreatedAt  time.Time  `json:"createdAt"`
 	ResolvedAt *time.Time `json:"resolvedAt"`
 }
 
-// ============================================================
-// FITUR 1: MainGoal -- "Goals Utama Pasangan". Menggantikan konsep lama
-// TargetWeddingFund (dana nikah tetap). Sekarang goal utama bisa apa saja
-// (nama bebas), target dana, dan target tanggal (opsional). Disimpan satu
-// baris per pasangan, diidentifikasi lewat CoupleKey (gabungan kedua
-// userId, diurutkan supaya konsisten dari sisi manapun query-nya). Untuk
-// mode jomblo, CoupleKey cuma berisi userId itu sendiri.
-// ============================================================
 type MainGoal struct {
 	ID           string     `json:"id" gorm:"primaryKey;type:varchar(40)"`
 	CoupleKey    string     `json:"coupleKey" gorm:"type:varchar(90);index"`
-	OwnerUserID  string     `json:"ownerUserId" gorm:"type:varchar(40)"` // pembuat goal ini
+	OwnerUserID  string     `json:"ownerUserId" gorm:"type:varchar(40)"` 
 	Name         string     `json:"name" gorm:"type:varchar(160)"`
 	TargetAmount float64    `json:"targetAmount"`
-	TargetDate   *string    `json:"targetDate" gorm:"type:varchar(10)"` // opsional, YYYY-MM-DD
+	TargetDate   *string    `json:"targetDate" gorm:"type:varchar(10)"`
 	CurrentAmount float64   `json:"currentAmount"`
-	Status       string     `json:"status" gorm:"type:varchar(10)"` // active | achieved | archived
+	Status       string     `json:"status" gorm:"type:varchar(10)"`
 	AchievedAt   *time.Time `json:"achievedAt"`
 	CreatedAt    time.Time  `json:"createdAt"`
 	UpdatedAt    time.Time  `json:"updatedAt"`
@@ -228,36 +214,25 @@ type MainGoalContribution struct {
 	ID         string    `json:"id" gorm:"primaryKey;type:varchar(40)"`
 	MainGoalID string    `json:"mainGoalId" gorm:"type:varchar(40);index"`
 	UserID     string    `json:"userId" gorm:"type:varchar(40);index"`
-	SourceType string    `json:"sourceType" gorm:"type:varchar(20)"` // wallet_deposit | cashflow_income | wallet_direct
+	SourceType string    `json:"sourceType" gorm:"type:varchar(20)"` 
 	SourceID   string    `json:"sourceId" gorm:"type:varchar(40)"`
-	// WalletID: dompet asal dana kontribusi ini. Dicatat supaya saat goal
-	// tercapai, saldo tiap dompet yang berkontribusi bisa dipotong sesuai
-	// jumlah yang sudah "dijanjikan" ke goal -- lihat settleMainGoalWallets
-	// di main_goal_handler.go. Nullable karena data lama sebelum kolom ini
-	// ada tidak punya wallet asal yang tercatat.
 	WalletID   *string   `json:"walletId" gorm:"type:varchar(40)"`
 	Amount     float64   `json:"amount"`
 	CreatedAt  time.Time `json:"createdAt"`
 }
 
-// MainGoalChangeRequest: sama seperti FundChangeRequest tapi generik untuk
-// MainGoal -- dipakai kalau pasangan sudah punya goal aktif dan salah
-// satu pihak mau ganti nama/target dana/target tanggal, ATAU membuat goal
-// baru setelah goal sebelumnya tercapai (dengan opsi rollover saldo).
-// Kalau user belum punya pasangan (mode jomblo), perubahan berlaku
-// langsung tanpa approval -- lihat main_goal_handler.go.
 type MainGoalChangeRequest struct {
 	ID              string     `json:"id" gorm:"primaryKey;type:varchar(40)"`
 	CoupleKey       string     `json:"coupleKey" gorm:"type:varchar(90);index"`
 	FromUserID      string     `json:"fromUserId" gorm:"type:varchar(40);index"`
 	ToUserID        string     `json:"toUserId" gorm:"type:varchar(40);index"`
-	Action          string     `json:"action" gorm:"type:varchar(10)"` // create | edit
+	Action          string     `json:"action" gorm:"type:varchar(10)"` 
 	OldMainGoalID   *string    `json:"oldMainGoalId" gorm:"type:varchar(40)"`
 	Name            string     `json:"name" gorm:"type:varchar(160)"`
 	TargetAmount    float64    `json:"targetAmount"`
 	TargetDate      *string    `json:"targetDate" gorm:"type:varchar(10)"`
-	RolloverAmount  float64    `json:"rolloverAmount"` // dibawa dari goal lama yang sudah achieved (kalau action=create)
-	Status          string     `json:"status" gorm:"type:varchar(10)"` // pending|approved|rejected
+	RolloverAmount  float64    `json:"rolloverAmount"` 
+	Status          string     `json:"status" gorm:"type:varchar(10)"`
 	CreatedAt       time.Time  `json:"createdAt"`
 	ResolvedAt      *time.Time `json:"resolvedAt"`
 }
@@ -266,10 +241,6 @@ type MainGoalChangeRequest struct {
 // FITUR 2: Wedding template & linkage ke wallet
 // ============================================================
 
-// WeddingTemplateSelection: template yang sedang dipakai pasangan. Kalau
-// mau ganti template padahal sudah pernah pilih, wajib lewat
-// WeddingTemplateChangeRequest (approval pasangan) -- template hanya
-// "wadah" awal, isinya (WeddingCategory) tetap bebas diedit siapa saja.
 type WeddingTemplateSelection struct {
 	ID           string    `json:"id" gorm:"primaryKey;type:varchar(40)"`
 	CoupleKey    string    `json:"coupleKey" gorm:"type:varchar(90);index"`
@@ -285,14 +256,9 @@ type WeddingTemplateChangeRequest struct {
 	ToUserID       string     `json:"toUserId" gorm:"type:varchar(40);index"`
 	OldTemplateKey string     `json:"oldTemplateKey" gorm:"type:varchar(60)"`
 	NewTemplateKey string     `json:"newTemplateKey" gorm:"type:varchar(60)"`
-	// FIX: sebelumnya nilai ini tidak pernah disimpan sama sekali di
-	// request-nya, jadi begitu pasangan approve, tidak ada informasi
-	// budget yang bisa dipakai untuk benar-benar generate pos-pos
-	// anggaran dari template baru -- approval jadi tidak berefek apa-apa
-	// selain mencatat "template terpilih" tanpa isi.
 	TotalBudget    float64    `json:"totalBudget"`
 	WalletID       *string    `json:"walletId" gorm:"type:varchar(40)"`
-	Status         string     `json:"status" gorm:"type:varchar(10)"` // pending|approved|rejected
+	Status         string     `json:"status" gorm:"type:varchar(10)"` 
 	CreatedAt      time.Time  `json:"createdAt"`
 	ResolvedAt     *time.Time `json:"resolvedAt"`
 }
@@ -301,9 +267,6 @@ type WeddingTemplateChangeRequest struct {
 // FITUR 3: Habit schedule
 // ============================================================
 
-// HabitProfile: input mentah dari user (gaji, agama, budget kontrakan,
-// bensin, makan, status kuliah, jam freelance) yang jadi bahan generate
-// jadwal otomatis.
 type HabitProfile struct {
 	ID              string    `json:"id" gorm:"primaryKey;type:varchar(40)"`
 	UserID          string    `json:"userId" gorm:"type:varchar(40);uniqueIndex"`
@@ -314,30 +277,22 @@ type HabitProfile struct {
 	FoodBudget      float64   `json:"foodBudget"`
 	IsCollege       bool      `json:"isCollege"`
 	HasFreelance    bool      `json:"hasFreelance"`
-	FreelanceStart  *string   `json:"freelanceStart" gorm:"type:varchar(5)"` // "HH:MM"
+	FreelanceStart  *string   `json:"freelanceStart" gorm:"type:varchar(5)"` 
 	FreelanceEnd    *string   `json:"freelanceEnd" gorm:"type:varchar(5)"`
 	CreatedAt       time.Time `json:"createdAt"`
 	UpdatedAt       time.Time `json:"updatedAt"`
 }
 
-// HabitScheduleEntry: satu blok jadwal di satu hari (Senin=1 ... Minggu=7).
 type HabitScheduleEntry struct {
 	ID        string    `json:"id" gorm:"primaryKey;type:varchar(40)"`
 	UserID    string    `json:"userId" gorm:"type:varchar(40);index"`
-	DayOfWeek int       `json:"dayOfWeek"` // 1=Senin ... 7=Minggu
+	DayOfWeek int       `json:"dayOfWeek"` 
 	StartTime string    `json:"startTime" gorm:"type:varchar(5)"`
 	EndTime   string    `json:"endTime" gorm:"type:varchar(5)"`
 	Title     string    `json:"title" gorm:"type:varchar(120)"`
-	Category  string    `json:"category" gorm:"type:varchar(30)"` // ibadah|kuliah|kerja|freelance|istirahat|keuangan|lainnya
-	Source    string    `json:"source" gorm:"type:varchar(10)"`   // ai|static|manual
-	// ✅ FITUR: alokasi budget per kegiatan (mis. "Makan Siang" -> Rp15.000)
-	// supaya notif jadwal juga bisa munculkan takarannya, bukan cuma jam
-	// kegiatan. HANYA dikirim ke pemilik jadwal -- lihat catatan privasi
-	// di habit_handler.go GetPartnerSchedule.
+	Category  string    `json:"category" gorm:"type:varchar(30)"` 
+	Source    string    `json:"source" gorm:"type:varchar(10)"`
 	Budget *float64 `json:"budget"`
-	// ActualSpent: realisasi yang diisi user setelah kegiatan itu
-	// dijalani, buat ketahuan kalau kepakai lebih dari alokasi
-	// (overbudget). Sama-sama privat, tidak pernah dikirim ke pasangan.
 	ActualSpent *float64  `json:"actualSpent"`
 	CreatedAt   time.Time `json:"createdAt"`
 }

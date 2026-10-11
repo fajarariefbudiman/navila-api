@@ -128,16 +128,6 @@ func (h *AuthHandler) Me(c echo.Context) error {
 	return c.JSON(http.StatusOK, u)
 }
 
-// GetPartner - GET /auth/partner
-// BUG FIX: sebelumnya TIDAK ADA endpoint untuk mengambil data pasangan
-// yang fresh dari server. `Me` cuma mengembalikan akun sendiri, dan
-// `LinkPartner` juga cuma mengembalikan akun sendiri (bukan pasangan) --
-// jadi Flutter (AppProvider.refreshPartner) hanya bisa membaca cache
-// lokal (StorageService) yang tersimpan sekali waktu awal linking dan
-// TIDAK PERNAH ter-update lagi. Kalau pasangan ganti nama/email setelah
-// itu, HP yang satunya akan menampilkan data basi selamanya. Endpoint
-// ini memperbaikinya dengan selalu mengambil baris User pasangan
-// langsung dari database saat ini.
 func (h *AuthHandler) GetPartner(c echo.Context) error {
 	userID := c.Get("userId").(string)
 	var me models.User

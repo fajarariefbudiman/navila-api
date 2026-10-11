@@ -38,10 +38,6 @@ type habitProfileReq struct {
 }
 
 // SaveProfile - POST /habit/profile
-// Simpan/update profil, lalu generate ulang seluruh jadwal otomatis
-// (Source="ai" atau "static"). Entry yang sudah diedit manual oleh user
-// (Source="manual") TIDAK dihapus/ditimpa supaya perubahan user tetap
-// dihormati.
 func (h *HabitHandler) SaveProfile(c echo.Context) error {
 	userID := c.Get("userId").(string)
 	var req habitProfileReq
@@ -108,14 +104,6 @@ func (h *HabitHandler) GetSchedule(c echo.Context) error {
 	return c.JSON(http.StatusOK, rows)
 }
 
-// GetPartnerSchedule - GET /habit/schedule/partner : jadwal pasangan,
-// READ-ONLY (tidak ada endpoint edit yang menerima userId pasangan).
-//
-// ✅ PRIVASI: budget & actualSpent SENGAJA di-null-kan di sini sebelum
-// dikirim ke client -- pasangan cuma boleh lihat KEGIATANNYA (judul,
-// jam, kategori), bukan takaran/realisasi uangnya. Ini dilakukan di
-// server, bukan cuma disembunyikan di UI, supaya data itu memang tidak
-// pernah ikut terkirim lewat API sama sekali.
 func (h *HabitHandler) GetPartnerSchedule(c echo.Context) error {
 	userID := c.Get("userId").(string)
 	var me models.User
@@ -159,9 +147,6 @@ func (h *HabitHandler) CreateEntry(c echo.Context) error {
 	return c.JSON(http.StatusCreated, row)
 }
 
-// UpdateEntry - PATCH /habit/schedule/:id : user tetap bisa ubah jadwal
-// hasil generate. Begitu diedit, Source dipaksa jadi "manual" supaya
-// generate ulang berikutnya tidak menimpa perubahan ini.
 func (h *HabitHandler) UpdateEntry(c echo.Context) error {
 	userID := c.Get("userId").(string)
 	id := c.Param("id")

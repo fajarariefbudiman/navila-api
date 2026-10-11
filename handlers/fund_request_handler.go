@@ -12,9 +12,6 @@ import (
 
 type FundRequestHandler struct{ DB *gorm.DB }
 
-// List mengembalikan semua request yang masih pending & melibatkan user ini
-// (baik yang dia kirim maupun yang dia terima), supaya Flutter bisa
-// menampilkan "menunggu persetujuan" di kedua sisi.
 func (h *FundRequestHandler) List(c echo.Context) error {
 	userID := c.Get("userId").(string)
 	var rows []models.FundChangeRequest
@@ -23,8 +20,6 @@ func (h *FundRequestHandler) List(c echo.Context) error {
 	return c.JSON(http.StatusOK, rows)
 }
 
-// Create membuat permintaan perubahan target dana. Wajib sudah punya
-// pasangan (targetWeddingFund adalah nilai bersama, bukan milik satu orang).
 func (h *FundRequestHandler) Create(c echo.Context) error {
 	userID := c.Get("userId").(string)
 	var body struct {
@@ -57,13 +52,10 @@ func (h *FundRequestHandler) Create(c echo.Context) error {
 	return c.JSON(http.StatusCreated, req)
 }
 
-// Approve HANYA boleh dipanggil oleh ToUserID (pihak yang diminta setuju).
-// Begitu disetujui, targetWeddingFund kedua akun diupdate ke nilai baru.
 func (h *FundRequestHandler) Approve(c echo.Context) error {
 	return h.resolve(c, "approved")
 }
 
-// Reject juga hanya boleh dipanggil oleh ToUserID; tidak ada perubahan data.
 func (h *FundRequestHandler) Reject(c echo.Context) error {
 	return h.resolve(c, "rejected")
 }

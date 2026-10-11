@@ -39,9 +39,6 @@ func (h *GoalHandler) Create(c echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "invalid payload"})
 	}
-	// ✅ Kalau goal langsung dibuat dengan subtasks (jarang, tapi bisa
-	// terjadi lewat duplicate/template), progress-nya ikut dihitung dari
-	// situ -- bukan dari nilai `progress` yang dikirim manual.
 	progress := req.Progress
 	if p := computeProgressFromSubtasks(req.Subtasks); p >= 0 {
 		progress = p
@@ -101,11 +98,6 @@ func (h *GoalHandler) Update(c echo.Context) error {
 		}
 		patch["subtasks"] = subtasks
 
-		// ✅ FITUR: progress otomatis nambah/berkurang sesuai subtask yang
-		// dicentang -- user gak perlu geser progress manual lagi begitu ada
-		// checklist. Kalau ada subtask yang belum dicentang, progress
-		// TIDAK BISA 100% (dihitung persis proporsional), jadi selalu
-		// akurat merepresentasikan "sudah sampai mana".
 		if p := computeProgressFromSubtasks(subtasks); p >= 0 {
 			patch["progress"] = p
 		}

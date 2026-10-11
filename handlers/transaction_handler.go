@@ -27,8 +27,6 @@ type transactionCreateReq struct {
 	Note                  *string `json:"note"`
 	Date                  string  `json:"date"`
 	IsWeddingContribution bool    `json:"isWeddingContribution"`
-	// ContributeToMainGoal: dijawab "ya" saat prompt "Masukkan ke goals
-	// anda?" muncul ketika user menambah saldo (deposit) di wallet ini.
 	ContributeToMainGoal bool `json:"contributeToMainGoal"`
 }
 
@@ -64,9 +62,6 @@ func (h *TransactionHandler) Create(c echo.Context) error {
 			Update("balance", gorm.Expr("balance + ?", delta)).Error; err != nil {
 			return err
 		}
-		// ✅ FITUR: kalau user pilih "Masukkan ke goals anda?" saat nambah
-		// saldo, dana ini juga ikut nambah ke Goal Utama Pasangan yang
-		// sedang aktif (kalau ada).
 		if req.ContributeToMainGoal && body.Type == "deposit" {
 			g, err := contributeToMainGoal(tx, userID, body.Amount, "wallet_deposit", body.ID, &body.WalletID)
 			if err != nil {
@@ -86,7 +81,6 @@ func (h *TransactionHandler) Create(c echo.Context) error {
 }
 
 // ListWeddingContributions - GET /transactions/wedding
-// Ambil semua transaksi yang ditandai sebagai kontribusi dana nikah
 func (h *TransactionHandler) ListWeddingContributions(c echo.Context) error {
 	userID := c.Get("userId").(string)
 	var txs []models.Transaction

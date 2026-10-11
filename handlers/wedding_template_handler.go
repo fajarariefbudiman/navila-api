@@ -12,15 +12,10 @@ import (
 
 type WeddingTemplateHandler struct{ DB *gorm.DB }
 
-// WeddingTemplateItem: satu baris item di template referensi (seperti
-// yang biasa ada di file Excel "wedding planner checklist" yang lengkap
-// dijual di marketplace) -- nama item, kategori, icon FontAwesome, dan
-// persentase estimasi dari total budget supaya user tinggal isi total
-// anggaran lalu tiap pos otomatis punya perkiraan.
 type WeddingTemplateItem struct {
 	Name    string  `json:"name"`
 	Icon    string  `json:"icon"`
-	Percent float64 `json:"percent"` // perkiraan porsi dari total budget
+	Percent float64 `json:"percent"`
 }
 
 type WeddingTemplateDef struct {
@@ -30,10 +25,6 @@ type WeddingTemplateDef struct {
 	Items       []WeddingTemplateItem  `json:"items"`
 }
 
-// weddingTemplates: referensi statis, mencakup beberapa adat/agama besar
-// di Indonesia. Ini hanya WADAH AWAL -- setelah diterapkan, semua item
-// (WeddingCategory) tetap 100% bisa diedit/dihapus/ditambah bebas oleh
-// user, persis seperti kalau ditulis manual.
 var weddingTemplates = []WeddingTemplateDef{
 	{
 		Key: "islam_umum", Label: "Islam (Akad + Resepsi Umum)",
@@ -216,16 +207,10 @@ func (h *WeddingTemplateHandler) GetSelection(c echo.Context) error {
 
 type applyTemplateReq struct {
 	TemplateKey  string   `json:"templateKey"`
-	TotalBudget  float64  `json:"totalBudget"` // dipakai buat hitung estimasi tiap pos dari Percent
-	WalletID     *string  `json:"walletId"`     // opsional: link default ke wallet ini
+	TotalBudget  float64  `json:"totalBudget"` 
+	WalletID     *string  `json:"walletId"`     
 }
 
-// ApplyTemplate - POST /wedding/apply-template
-// - Kalau pasangan BELUM pernah pilih template: langsung diterapkan (isi
-//   WeddingCategory dari template, budget per item = totalBudget * percent).
-// - Kalau SUDAH pernah pilih template (mau ganti ke lain): wajib approval
-//   pasangan lewat WeddingTemplateChangeRequest, item lama TIDAK dihapus
-//   sampai disetujui.
 func (h *WeddingTemplateHandler) ApplyTemplate(c echo.Context) error {
 	userID := c.Get("userId").(string)
 	var me models.User
@@ -253,10 +238,6 @@ func (h *WeddingTemplateHandler) ApplyTemplate(c echo.Context) error {
 			ToUserID:       *me.PartnerID,
 			OldTemplateKey: existing.TemplateKey,
 			NewTemplateKey: req.TemplateKey,
-			// FIX: sebelumnya TotalBudget & WalletID dari request ini
-			// tidak pernah diteruskan ke reqRow -- hilang begitu saja,
-			// jadi waktu di-approve tidak ada info yang bisa dipakai
-			// buat generate pos-pos anggarannya.
 			TotalBudget: req.TotalBudget,
 			WalletID:    req.WalletID,
 			Status:      "pending",
@@ -287,11 +268,6 @@ func (h *WeddingTemplateHandler) ApplyTemplate(c echo.Context) error {
 	return c.JSON(http.StatusCreated, echo.Map{"selection": req.TemplateKey, "categories": created})
 }
 
-// createCategoriesFromTemplate: helper yang men-generate WeddingCategory
-// dari sebuah WeddingTemplateDef, dipakai bersama oleh ApplyTemplate
-// (penerapan pertama kali) dan resolve() (approve permintaan ganti
-// template) supaya keduanya benar-benar membuat pos-pos anggaran yang
-// sama, bukan cuma mencatat "template terpilih" tanpa isi.
 func createCategoriesFromTemplate(tx *gorm.DB, tmpl *WeddingTemplateDef,
 	coupleID string, totalBudget float64, walletID *string) ([]models.WeddingCategory, error) {
 	var created []models.WeddingCategory
@@ -299,10 +275,6 @@ func createCategoriesFromTemplate(tx *gorm.DB, tmpl *WeddingTemplateDef,
 		cat := models.WeddingCategory{
 			ID: genID("wc"), CoupleID: coupleID, Name: item.Name,
 			Budget: totalBudget * item.Percent / 100, Paid: 0,
-			// BUG FIX: status harus salah satu dari 4 nilai yang dikenal
-			// Flutter ('planning'|'booked'|'paid'|'done') -- sebelumnya
-			// dipakai "belum" yang tidak ada di dropdown, jadi
-			// DropdownButton di detail item error begitu dibuka.
 			Status: "planning", Icon: item.Icon, CreatedAt: time.Now(),
 			WalletID: walletID,
 		}
@@ -350,27 +322,14 @@ func (h *WeddingTemplateHandler) resolve(c echo.Context, status string) error {
 		if err := tx.Create(&sel).Error; err != nil {
 			return err
 		}
-		// FIX: sebelumnya berhenti sampai sini -- cuma mencatat
-		// WeddingTemplateSelection tanpa pernah benar-benar membuat
-		// WeddingCategory dari template barunya. Akibatnya approve
-		// "berhasil" (status berubah jadi approved) tapi tidak ada
-		// perubahan apa pun yang kelihatan di layar Pernikahan, persis
-		// seperti yang dilaporkan: "udah acc pasangan" tapi templatenya
-		// tidak berubah.
 		tmpl := findTemplate(reqRow.NewTemplateKey)
 		if tmpl == nil {
-			// Template lama mungkin sudah dihapus dari daftar server --
-			// jangan gagalkan approve-nya, tapi tidak ada item yang
-			// bisa digenerate.
 			return nil
 		}
 		var genErr error
 		created, genErr = createCategoriesFromTemplate(
 			tx, tmpl, reqRow.FromUserID, reqRow.TotalBudget, reqRow.WalletID)
 		return genErr
-		// NOTE: item WeddingCategory lama sengaja TIDAK dihapus otomatis --
-		// pasangan bisa bersih-bersih manual kalau memang mau mulai ulang,
-		// supaya data yang sudah terlanjur dibayar (Paid > 0) tidak hilang.
 	})
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "failed to resolve request"})

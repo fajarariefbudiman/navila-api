@@ -10,27 +10,9 @@ import (
 	"gorm.io/gorm"
 )
 
-// WeddingHandler - ORIGINAL + ENHANCED ENDPOINTS
-//
-// ORIGINAL Endpoints (ALREADY EXIST):
-// - POST   /wedding              → Create
-// - GET    /wedding              → List
-// - PATCH  /wedding/:id          → Update
-// - DELETE /wedding/:id          → Delete
-//
-// ENHANCED Endpoints (OPTIONAL, can add):
-// - GET    /wedding/:id          → GetByID
-// - GET    /wedding/filter       → Filter by status/name/vendor
-// - GET    /wedding/summary      → Budget summary
-// - PATCH  /wedding/bulk         → Bulk update multiple items
-// - DELETE /wedding/bulk         → Bulk delete multiple items
-
 type WeddingHandler struct{ DB *gorm.DB }
 
-// ============================================================
 // ORIGINAL ENDPOINTS (dari existing code)
-// ============================================================
-
 func (h *WeddingHandler) List(c echo.Context) error {
 	userID := c.Get("userId").(string)
 	var u models.User
